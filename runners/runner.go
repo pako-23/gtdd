@@ -60,6 +60,7 @@ func NewRunner(config *RunnerConfig) (*Runner, error) {
 	log.Debugf("successfully created network %s with ID %s", config.Name, net.ID)
 
 	runner := &Runner{
+		app:           compose.AppInstance{},
 		appDefinition: config.App,
 		name:          config.Name,
 		network:       net.ID,
