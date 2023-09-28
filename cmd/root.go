@@ -1,6 +1,9 @@
-/*
-Copyright © 2023 NAME HERE <EMAIL ADDRESS>
-*/
+// Copyright 2023 The GTDD Authors. All rights reserved.
+// Use of this source code is governed by a GPL-style
+// license that can be found in the LICENSE file.
+
+// Define all commands supported by GTDD.
+
 package cmd
 
 import (
@@ -12,17 +15,14 @@ import (
 )
 
 var logLevel string
+var logFormat string
+var logFile string
 
-// rootCmd represents the base command when called without any subcommands
+// rootCmd represents the base command when called without any subcommands.
 var rootCmd = &cobra.Command{
 	Use:   "gtdd",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "A tool to manage test suite dependency detection",
+	Long:  `A tool to manage test suite dependency detection`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	// Run: func(cmd *cobra.Command, args []string) { },
@@ -31,35 +31,52 @@ to quickly create a Cobra application.`,
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-
-	// log.SetLevel(toLogLevel(logLevel))
-
-	err := rootCmd.Execute()
-	if err != nil {
+	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
 }
 
+// toLogLevel translates a string to the corresponding log level. If the
+// provided string representing the log level is not supported, the program
+// will exit with an error.
 func toLogLevel(level string) log.Level {
-
 	switch strings.ToLower(level) {
 	case "info":
 		return log.InfoLevel
 	case "debug":
 		return log.DebugLevel
 	default:
-		log.Fatalf("%s is not a supported logging level")
+		log.Fatalf("%s is not a supported logging level", level)
 	}
 	return log.InfoLevel
 }
 
+// configureLogging configures all the logging options.
+func configureLogging(cmd *cobra.Command, args []string) {
+	log.SetLevel(toLogLevel(logLevel))
+	switch logFormat {
+	case "json":
+		log.SetFormatter(&log.JSONFormatter{})
+	}
+
+	if logFile == "" {
+		return
+	}
+
+	file, err := os.OpenFile(logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err == nil {
+		log.SetOutput(file)
+	}
+}
+
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
+	rootCmd.PersistentFlags().StringVar(&logLevel, "log", "info", "Log level")
+	rootCmd.PersistentFlags().StringVar(&logFormat, "format", "plain", "The log format")
+	rootCmd.PersistentFlags().StringVar(&logFile, "log-file", "", "The log file")
 
-	rootCmd.PersistentFlags().StringVar(&logLevel, "log", "debug", "Log level")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
+	initBuildCmd()
+	initDepsCmd()
+	initGraphCmd()
+	initRunCmd()
+	initSchedulesCmd()
 }

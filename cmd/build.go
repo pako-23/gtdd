@@ -1,9 +1,8 @@
-/*
-Copyright © 2023 NAME HERE <EMAIL ADDRESS>
-*/
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/pako-23/gtdd/compose"
 	"github.com/pako-23/gtdd/testsuite"
 	log "github.com/sirupsen/logrus"
@@ -11,48 +10,49 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// buildCmd represents the build command
+// buildCmd represents the build command.
 var buildCmd = &cobra.Command{
-	Use:   "build [flags] [path to testsuite]",
-	Short: "A brief description of your command",
-	Args:  cobra.ExactArgs(1),
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
+	Use:    "build [flags] [path to testsuite]",
+	Short:  "Builds the artifacts needed to run a test suite",
+	Args:   cobra.ExactArgs(1),
+	Long:   `Creates all the artifacts needed to run the test suite.`,
+	PreRun: configureLogging,
+	Run: func(cmd *cobra.Command, args []string) {
+		path := args[0]
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	Run: buildCommandExec,
+		app, err := compose.NewApp(&compose.AppConfig{
+			Path:        path,
+			ComposeFile: "docker-compose.yml",
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		suite, err := testsuite.FactoryTestSuite("java")
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		var waitgroup errgroup.Group
+
+		waitgroup.Go(app.Pull)
+		waitgroup.Go(func() error {
+			if err := suite.Build(path); err != nil {
+				return fmt.Errorf("test suite artifacts build failed: %w", err)
+			}
+
+			return nil
+		})
+
+		if err := waitgroup.Wait(); err != nil {
+			log.Fatal(err)
+		}
+
+		log.Info("artifacts build was successful")
+	},
 }
 
-func init() {
+// initBuildCmd initializes the build command flags.
+func initBuildCmd() {
 	rootCmd.AddCommand(buildCmd)
-}
-
-func buildCommandExec(cmd *cobra.Command, args []string) {
-	path := args[0]
-
-	app, err := compose.NewApp(&compose.AppConfig{
-		Path:        path,
-		ComposeFile: "docker-compose.yml",
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	suite, err := testsuite.TestSuiteFactory("java")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	var g errgroup.Group
-
-	g.Go(app.Pull)
-	g.Go(func() error { return suite.Build(path) })
-
-	if err := g.Wait(); err != nil {
-		log.Fatal(err)
-	}
-
-	log.Info("Artifacts built was successful")
 }

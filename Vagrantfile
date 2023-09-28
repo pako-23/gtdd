@@ -5,7 +5,7 @@ Vagrant.configure('2') do |config|
     $script = <<-SHELL
         sudo apt update
         sudo apt upgrade -y
-        sudo apt-get install -y ca-certificates curl gnupg golang
+        sudo apt-get install -y ca-certificates curl gnupg golang make
         sudo install -m 0755 -d /etc/apt/keyrings
         curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
         sudo chmod a+r /etc/apt/keyrings/docker.gpg

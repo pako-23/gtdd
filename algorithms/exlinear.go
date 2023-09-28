@@ -4,64 +4,99 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/pako-23/gtdd/runners"
 )
 
-func remove(s []string, index int) []string {
-	ret := make([]string, 0)
-	ret = append(ret, s[:index]...)
-
-	return append(ret, s[index+1:]...)
+// exLinearContext represents all the context data to execute one iteration of
+// the ex-linear strategy to detect dependencies between tests.
+type exLinearContext struct {
+	// The schedule from the previous iteration of the algorithm.
+	previousSchedule []string
+	// The test excluded from the first iteration of the algorithm.
+	excludedTest string
+	// The index of the test that failed from the previous iteration.
+	failedTest int
+	// The runners on which the test suites are run.
+	runners *runners.RunnerSet
 }
 
-func findFailed(results []bool) int {
-	for i, value := range results {
-		if !value {
-			return i
-		}
+// exLinearIteration performs one iteration of the ex-linear strategy to detect
+// dependencies between the tests of a test suite. The strategy works
+// as follows:
+//
+//   - Remove one test from the original test suite.
+//   - Run the resulting schedule.
+//   - If some test fails add one edge in the graph of tests dependencies
+//     from the failed test and the test initially excluded. Then, proceed with
+//     a new iteration where the failed test is also excluded. If no test
+//     failed, do nothing.
+func exLinearIteration(ctx *exLinearContext, n *sync.WaitGroup, ch chan<- edgeChannelData) {
+	defer n.Done()
+	schedule := remove(ctx.previousSchedule, ctx.failedTest)
+	runnerID, err := ctx.runners.Reserve()
+	if err != nil {
+		ch <- edgeChannelData{edge: edge{from: "", to: ""}, err: err}
+
+		return
+	}
+	defer ctx.runners.Release(runnerID)
+
+	time.Sleep(StartUpTime)
+	results, err := ctx.runners.Get(runnerID).Run(schedule)
+	if err != nil {
+		ch <- edgeChannelData{edge: edge{from: "", to: ""}, err: err}
+
+		return
 	}
 
-	return -1
+	log.Debugf("run tests %v -> %v", schedule, results)
+
+	firstFailed := FindFailed(results)
+	if firstFailed == -1 {
+		ch <- edgeChannelData{edge: edge{from: "", to: ""}, err: nil}
+	} else {
+		ch <- edgeChannelData{
+			edge: edge{
+				from: schedule[firstFailed],
+				to:   ctx.excludedTest,
+			},
+			err: err,
+		}
+
+		if len(schedule) == 1 {
+			return
+		}
+
+		n.Add(1)
+		go exLinearIteration(&exLinearContext{
+			previousSchedule: schedule,
+			excludedTest:     ctx.excludedTest,
+			failedTest:       firstFailed,
+			runners:          ctx.runners,
+		}, n, ch)
+	}
 }
 
-// TODO: add docs here (+ find name)
-func ExLinear(tests []string, oracle *runners.RunnerSet) (DependencyGraph, error) {
-	type data struct {
-		edge
-		err error
-	}
-	ch, n, g := make(chan data), sync.WaitGroup{}, NewDependencyGraph(tests)
-	var iteration func([]string, int, int)
+// ExLinear implements the ex-linear strategy to detect dependencies between
+// the tests into a given test suite. If there is any error, it is returned.
+func ExLinear(tests []string, r *runners.RunnerSet) (DependencyGraph, error) {
+	ch := make(chan edgeChannelData)
+	n := sync.WaitGroup{}
+	g := NewDependencyGraph(tests)
 
-	iteration = func(tests_list []string, i, j int) {
-		defer n.Done()
-		schedule := remove(tests, j)
-		runnerId, err := oracle.Reserve()
-		if err != nil {
-			ch <- data{err: err}
-			return
-		}
-		defer oracle.Release(runnerId)
-		time.Sleep(time.Second * 30)
-		results, err := oracle.Get(runnerId).Run(schedule)
-		if err != nil {
-			ch <- data{err: err}
-			return
-		}
-
-		firstFailed := findFailed(results)
-		if firstFailed == -1 {
-			ch <- data{}
-		} else {
-			ch <- data{edge: edge{from: schedule[firstFailed], to: tests[i]}}
-			n.Add(1)
-			go iteration(schedule, i, firstFailed)
-		}
-	}
+	log.Debug("starting dependency detection algorithm")
 
 	for i := 0; i < len(tests)-1; i++ {
 		n.Add(1)
-		go iteration(tests, i, i)
+
+		go exLinearIteration(&exLinearContext{
+			previousSchedule: tests,
+			excludedTest:     tests[i],
+			failedTest:       i,
+			runners:          r,
+		}, &n, ch)
 	}
 
 	go func() {
@@ -76,6 +111,8 @@ func ExLinear(tests []string, oracle *runners.RunnerSet) (DependencyGraph, error
 			g.AddDependency(result.from, result.to)
 		}
 	}
+
+	log.Debug("finished dependency detection algorithm")
 
 	return g, nil
 }

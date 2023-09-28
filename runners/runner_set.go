@@ -9,7 +9,10 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// The configuration to create an set of runners
+// The default number of runners into a set of runners.
+const DefaultSetSize = 1
+
+// RunnerSetConfig represents the configurations needed to create a RunnerSer.
 type RunnerSetConfig struct {
 	// The App to configure on the runners.
 	App *compose.App
@@ -17,13 +20,13 @@ type RunnerSetConfig struct {
 	Driver *compose.App
 	// The number of runners to include in the set.
 	Runners uint
-	// The testsuite to run into the runner.
+	// The test suite to run into the runner.
 	TestSuite testsuite.TestSuite
-	//
+	// The environment variables to pass to the test suite when running it.
 	TestSuiteEnv []string
 }
 
-// RunnerSet defines a set of runners.
+// RunnerSet represents a group of runners used to run a test suites.
 type RunnerSet struct {
 	// The mapping from the name to the actual runner.
 	runners map[string]*Runner
@@ -39,8 +42,9 @@ func NewRunnerSet(config *RunnerSetConfig) (*RunnerSet, error) {
 		tokens:  make(chan string, config.Runners),
 	}
 	if err := config.Driver.Pull(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to pull driver artifacts when creating set of runners: %w", err)
 	}
+	log.Debugf("successfully pulled images for the test driver")
 
 	for i := uint(0); i < config.Runners; i++ {
 		runnerName := fmt.Sprintf("runner-%d", i)
@@ -50,12 +54,15 @@ func NewRunnerSet(config *RunnerSetConfig) (*RunnerSet, error) {
 			Name:            runnerName,
 		})
 		if err != nil {
-			set.Delete()
+			if deleteErr := set.Delete(); deleteErr != nil {
+				log.Error(deleteErr)
+			}
+
 			return nil, err
 		}
 		set.runners[runnerName] = runner
 	}
-	log.Infof("Successfully initialized %d runners", config.Runners)
+	log.Infof("successfully initialized %d runners", config.Runners)
 
 	return &set, nil
 }
@@ -65,32 +72,44 @@ func NewRunnerSet(config *RunnerSetConfig) (*RunnerSet, error) {
 func (r *RunnerSet) Delete() error {
 	close(r.tokens)
 
-	var g errgroup.Group
+	var waitgroup errgroup.Group
 
 	for _, runner := range r.runners {
-		g.Go(runner.Delete)
+		waitgroup.Go(runner.Delete)
 	}
 
-	return g.Wait()
+	if err := waitgroup.Wait(); err != nil {
+		return fmt.Errorf("failed to delete set of runners: %w", err)
+	}
+
+	return nil
 }
 
+// Reserve reserves one runner from the set and returns its identifier.
+// When reserving the runner, the application on the runner is also reset.
+// If there is any error in reserving the runner or resetting the application,
+// it is returned.
 func (r *RunnerSet) Reserve() (string, error) {
-	runnerId := <-r.tokens
+	runnerID := <-r.tokens
 
-	runner := r.runners[runnerId]
+	runner := r.runners[runnerID]
 
 	if err := runner.ResetApplication(); err != nil {
-		r.Release(runnerId)
+		r.Release(runnerID)
+
 		return "", err
 	}
 
-	return runnerId, nil
+	return runnerID, nil
 }
 
-func (r *RunnerSet) Release(runnerId string) {
-	r.tokens <- runnerId
+// Release deletes the reservation for a given runner. It requires the
+// identifier of the reserved runner to release it.
+func (r *RunnerSet) Release(runnerID string) {
+	r.tokens <- runnerID
 }
 
-func (r *RunnerSet) Get(runnerId string) *Runner {
-	return r.runners[runnerId]
+// Get returns the actual runner from a given identifier.
+func (r *RunnerSet) Get(runnerID string) *Runner {
+	return r.runners[runnerID]
 }

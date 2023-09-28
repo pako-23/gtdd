@@ -2,6 +2,8 @@ package testsuite
 
 import (
 	"context"
+	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/docker/docker/client"
@@ -15,17 +17,18 @@ type JavaTestSuite struct {
 	Image string
 }
 
-// Builds the artifacts needed to run the Java test suite.
+// Build produces the artifacts needed to run the Java test suite. It will
+// create a Docker image on the host. If there is any error it is returned.
 func (j *JavaTestSuite) Build(path string) error {
 	return buildDockerImage(path, j.Image)
 }
 
-// ListTests returns the tests contained into a Java test suite, If there
-// is an error, it is returned.
+// ListTests returns the list of all tests declared into a Java test suite in
+// the order in which they are run. If there is any error, it is returned.
 func (j *JavaTestSuite) ListTests() ([]string, error) {
 	cli, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create client to list Java test suite tests: %w", err)
 	}
 	defer cli.Close()
 	ctx := context.Background()
@@ -35,7 +38,7 @@ func (j *JavaTestSuite) ListTests() ([]string, error) {
 	}}
 	instance, err := app.Start(&compose.StartConfig{})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to start Java test suite container: %w", err)
 	}
 	defer func() {
 		if err := instance.Delete(); err != nil {
@@ -51,12 +54,14 @@ func (j *JavaTestSuite) ListTests() ([]string, error) {
 	return strings.Split(strings.Trim(logs, "\n"), "\n"), nil
 }
 
-// ListTests returns the tests contained into a Java test suite, If there
-// is an error, it is returned.
+// Run invokes the Java test suite with a given configuration and returns its
+// results. The test results are represented as booleans. If the test
+// is passed, the value is true; otherwise it is false. If there is
+// any error, it is returned.
 func (j *JavaTestSuite) Run(config *RunConfig) ([]bool, error) {
 	cli, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create client to run Java test suite: %w", err)
 	}
 	defer cli.Close()
 	ctx := context.Background()
@@ -70,23 +75,27 @@ func (j *JavaTestSuite) Run(config *RunConfig) ([]bool, error) {
 	}}
 	instance, err := suite.Start(config.StartConfig)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error in starting java test suite container: %w", err)
 	}
 	defer func() {
 		if err := instance.Delete(); err != nil {
 			log.Error(err)
 		}
 	}()
+	log.Debugf("successfully started java test suite container %s", instance["testsuite"])
 
 	logs, err := getContainerLogs(ctx, cli, instance["testsuite"])
 	if err != nil {
 		return nil, err
 	}
+	log.Debugf("successfully obtained logs from java test suite container %s", instance["testsuite"])
+	log.Debugf("container logs: %s", logs)
 
 	result := []bool{}
-
-	for _, line := range strings.Split(strings.Trim(logs, "\n"), "\n") {
-		if len(line) > 0 {
+	r, _ := regexp.Compile("[a-zA-Z._0-9]+ (0|1)")
+	lines := strings.Split(strings.Trim(logs, "\n"), "\n")
+	for _, line := range lines[len(lines)-len(config.Tests):] {
+		if r.MatchString(line) {
 			result = append(result, line[len(line)-1] == '1')
 		}
 	}

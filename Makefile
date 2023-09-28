@@ -29,12 +29,22 @@ lint:
 	$(CONTAINER_CLI) run -t --rm -v $(PWD):/app$(MOUNT_OPTIONS) \
 		-w /app \
 		golangci/golangci-lint:v1.54.2 \
-		golangci-lint run --enable-all
+		golangci-lint run
 endif
-
 
 ifneq (,$(wildcard $(GOPATH)/bin/godoc))
 .PHONY: docs
 docs:
 	@$(GOPATH)/bin/godoc -http=:6060
+endif
+
+
+ifneq (,$(wildcard $(GOPATH)/bin/gofumpt))
+.PHONY: format
+format:
+	@$(GOPATH)/bin/gofumpt -l -w .
+else
+.PHONY: format
+format:
+	@go fmt ./...
 endif
