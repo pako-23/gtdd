@@ -9,10 +9,36 @@ import (
 	"github.com/pako-23/gtdd/runners"
 )
 
+func pradetEdgeSelection(g DependencyGraph, edges []edge, begin int) (int, map[string]struct{}) {
+	triedEdges := 1
+	g.InvertDependency(edges[begin].from, edges[begin].to)
+	deps := g.GetDependencies(edges[begin].to)
+
+	_, cycle := deps[edges[begin].to]
+
+	for cycle {
+		if triedEdges == len(edges) {
+			return -1, nil
+		}
+
+		g.InvertDependency(edges[begin].to, edges[begin].from)
+		begin += 1
+		if begin == len(edges) {
+			begin = 0
+		}
+		triedEdges += 1
+
+		g.InvertDependency(edges[begin].from, edges[begin].to)
+		deps = g.GetDependencies(edges[begin].to)
+		_, cycle = deps[edges[begin].to]
+	}
+
+	return begin, deps
+}
+
 func Pradet(tests []string, oracle *runners.RunnerSet) (DependencyGraph, error) {
 	g := NewDependencyGraph(tests)
 	edges := []edge{}
-	triedEdges := 0
 
 	for i := range tests {
 		for j := i + 1; j < len(tests); j++ {
@@ -29,28 +55,7 @@ func Pradet(tests []string, oracle *runners.RunnerSet) (DependencyGraph, error) 
 			return nil, fmt.Errorf("pradet could not reserve runner: %w", err)
 		}
 
-		g.InvertDependency(edges[it].from, edges[it].to)
-		triedEdges = 1
-		deps := g.GetDependencies(edges[it].to)
-		_, cycle := deps[edges[it].to]
-
-		for cycle {
-			if triedEdges >= len(edges) {
-				it = -1
-				break
-			}
-
-			g.InvertDependency(edges[it].to, edges[it].from)
-			it += 1
-			if it >= len(edges) {
-				it = 0
-			}
-			triedEdges += 1
-			g.InvertDependency(edges[it].from, edges[it].to)
-			deps = g.GetDependencies(edges[it].to)
-			_, cycle = deps[edges[it].to]
-		}
-
+		it, deps := pradetEdgeSelection(g, edges, it)
 		if it == -1 {
 			break
 		}
@@ -78,7 +83,7 @@ func Pradet(tests []string, oracle *runners.RunnerSet) (DependencyGraph, error) 
 
 		edges = append(edges[:it], edges[it+1:]...)
 		it += 1
-		if it >= len(edges) {
+		if it == len(edges) {
 			it = 0
 		}
 	}

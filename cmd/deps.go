@@ -43,42 +43,49 @@ suite. The artifacts to run the test suite should already be
 built.`,
 	PreRun: configureLogging,
 	Run: func(cmd *cobra.Command, args []string) {
-		var g algorithms.DependencyGraph
-
-		runners, tests := setupRunEnv(args[0])
-		defer func() {
-			if err := runners.Delete(); err != nil {
-				log.Error(err)
-			}
-		}()
-
-		// []string{
-		// 	"app_url=http://app",
-		// 	"driver_url=http://selenium:4444",
-		// }
-
-		file, err := os.Create(outputFileName)
-		if err != nil {
-			log.Fatalf("failed to create json from data: %w", err)
-		}
-		defer file.Close()
-
-		switch strategy {
-		case "ex-linear":
-			g, err = algorithms.ExLinear(tests, runners)
-		case "pradet":
-			g, err = algorithms.Pradet(tests, runners)
-		default:
-			log.Fatal(errStrategyNotExisting)
-		}
-
-		if err != nil {
+		if err := execDepsCmd(args[0]); err != nil {
 			log.Fatal(err)
 		}
-
-		g.TransitiveReduction()
-		g.ToJSON(file)
 	},
+}
+
+func execDepsCmd(path string) error {
+	var (
+		g   algorithms.DependencyGraph
+		err error
+	)
+
+	runners, tests := setupRunEnv(path)
+	defer func() {
+		if err := runners.Delete(); err != nil {
+			log.Error(err)
+		}
+	}()
+
+	switch strategy {
+	case "ex-linear":
+		g, err = algorithms.ExLinear(tests, runners)
+	case "pradet":
+		g, err = algorithms.Pradet(tests, runners)
+	default:
+		return errStrategyNotExisting
+	}
+
+	if err != nil {
+		return err
+	}
+
+	g.TransitiveReduction()
+
+	file, err := os.Create(outputFileName)
+	if err != nil {
+		log.Fatalf("failed to create json from data: %w", err)
+	}
+	defer file.Close()
+
+	g.ToJSON(file)
+
+	return nil
 }
 
 // setupRunEnv is a utility function to setup the resources needed to run
