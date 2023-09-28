@@ -1,6 +1,7 @@
 package runners
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/pako-23/gtdd/compose"
@@ -11,6 +12,8 @@ import (
 
 // The default number of runners into a set of runners.
 const DefaultSetSize = 1
+
+var ErrNoRunner = errors.New("no runner to reserve")
 
 // RunnerSetConfig represents the configurations needed to create a RunnerSer.
 type RunnerSetConfig struct {
@@ -92,7 +95,10 @@ func (r *RunnerSet) Delete() error {
 func (r *RunnerSet) Reserve() (string, error) {
 	runnerID := <-r.tokens
 
-	runner := r.runners[runnerID]
+	runner, ok := r.runners[runnerID]
+	if !ok {
+		return "", ErrNoRunner
+	}
 
 	if err := runner.ResetApplication(); err != nil {
 		r.Release(runnerID)

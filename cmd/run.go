@@ -53,7 +53,9 @@ func getSchedules(tests []string) ([][]string, error) {
 func runSchedule(schedule []string, errCh chan error, resultsCh chan runResults, r *runners.RunnerSet) {
 	runnerID, err := r.Reserve()
 	if err != nil {
-		errCh <- err
+		if err != runners.ErrNoRunner {
+			errCh <- err
+		}
 
 		return
 	}
