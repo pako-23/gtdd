@@ -74,7 +74,7 @@ func runSchedule(schedule []string, errCh chan error, resultsCh chan runResults,
 }
 
 // execRunCmd
-func execRunCmd(path string) error {
+func execRunCmd(path string) []error {
 	runners, tests := setupRunEnv(path)
 	defer func() {
 		if err := runners.Delete(); err != nil {
@@ -84,7 +84,7 @@ func execRunCmd(path string) error {
 
 	schedules, err := getSchedules(tests)
 	if err != nil {
-		return err
+		return []error{err}
 	}
 
 	errCh, resultsCh := make(chan error), make(chan runResults)
@@ -93,22 +93,23 @@ func execRunCmd(path string) error {
 		go runSchedule(schedule, errCh, resultsCh, runners)
 	}
 
+	var errors []error = []error{}
+
 	for i := 0; i < len(schedules); i++ {
 		select {
 		case err := <-errCh:
 			close(errCh)
 			close(resultsCh)
-			return err
+			return []error{err}
 		case result := <-resultsCh:
-			if failed := algorithms.FindFailed(result.results); failed != -1 {
-				close(errCh)
-				close(resultsCh)
-				return fmt.Errorf("test %v failed in schedule %v", result.schedule[failed], result.schedule)
+			failed := algorithms.FindFailed(result.results)
+			if failed != -1 {
+				errors = append(errors, fmt.Errorf("test %v failed in schedule %v", result.schedule[failed], result.schedule))
 			}
 		}
 	}
 
-	return nil
+	return errors
 }
 
 func initRunCmd() {
