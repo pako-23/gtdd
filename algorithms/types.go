@@ -45,7 +45,6 @@ func NewDependencyGraph(nodes []string) DependencyGraph {
 // DependencyGraphFromJson returns a DependencyGraph form a JSON file. If
 // there is any error it is returned.
 func DependencyGraphFromJson(fileName string) (DependencyGraph, error) {
-
 	file, err := os.Open(fileName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open JSON file: %w", err)
@@ -126,7 +125,6 @@ func (d DependencyGraph) GetDependencies(test string) map[string]struct{} {
 
 // TransitiveReduction computes the transitive reduction of a dependency graph.
 func (d DependencyGraph) TransitiveReduction() {
-
 	for node, edges := range d {
 		minEdges := make(map[string]struct{})
 

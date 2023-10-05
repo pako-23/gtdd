@@ -10,10 +10,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	// inputFileName is the file.
-	inputFileName string
-)
+// inputFileName is the file.
+var inputFileName string
 
 type runResults struct {
 	schedule []string
@@ -30,8 +28,10 @@ computed based on a given graph. If no graph is provided, it
 will run the tests in the original order.`,
 	PreRun: configureLogging,
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := execRunCmd(args[0]); err != nil {
-			log.Fatal(err)
+		if errors := execRunCmd(args[0]); len(errors) != 0 {
+			for _, err := range errors {
+				log.Fatal(err)
+			}
 		}
 	},
 }

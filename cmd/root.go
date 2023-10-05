@@ -14,9 +14,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var logLevel string
-var logFormat string
-var logFile string
+var (
+	logLevel  string
+	logFormat string
+	logFile   string
+)
 
 // rootCmd represents the base command when called without any subcommands.
 var rootCmd = &cobra.Command{
@@ -63,7 +65,7 @@ func configureLogging(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	file, err := os.OpenFile(logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	file, err := os.OpenFile(logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o666)
 	if err == nil {
 		log.SetOutput(file)
 	}
