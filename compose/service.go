@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"strings"
 	"sync"
 
 	"context"
@@ -89,21 +90,21 @@ func (s *Service) run(ctx context.Context, ch chan<- serviceInstance, n *sync.Wa
 	}
 
 	if err := config.start(ctx, cli, containerID); err != nil {
-		cli.ContainerRemove(ctx, containerID, types.ContainerRemoveOptions{})
+		cli.ContainerRemove(ctx, containerID, types.ContainerRemoveOptions{Force: true})
 		ch <- serviceInstance{ContainerID: "", ServiceName: name, Error: err}
 
 		return
 	}
 
 	if s.HealthCheck != nil {
-		log.Debug("sleeping for %v", s.HealthCheck.StartPeriod)
+		log.Debugf("sleeping for %v", s.HealthCheck.StartPeriod)
 		time.Sleep(s.HealthCheck.StartPeriod)
 	}
 
 	for {
 
 		if running, err := checkRunning(ctx, cli, containerID); err != nil {
-			cli.ContainerRemove(ctx, containerID, types.ContainerRemoveOptions{})
+			cli.ContainerRemove(ctx, containerID, types.ContainerRemoveOptions{Force: true})
 			ch <- serviceInstance{ContainerID: "", ServiceName: name, Error: err}
 
 			return
@@ -112,7 +113,7 @@ func (s *Service) run(ctx context.Context, ch chan<- serviceInstance, n *sync.Wa
 		}
 
 		if s.HealthCheck != nil {
-			log.Debug("sleeping for %v", s.HealthCheck.Interval)
+			log.Debugf("sleeping for %v", s.HealthCheck.Interval)
 			time.Sleep(s.HealthCheck.Interval)
 		}
 	}
@@ -128,7 +129,12 @@ func checkRunning(ctx context.Context, cli *client.Client, containerID string) (
 
 	if stats.Config.Healthcheck != nil {
 		if stats.State.Health.FailingStreak >= stats.Config.Healthcheck.Retries {
-			return false, fmt.Errorf("container healthcheck failing: %v", stats.State.Health.Log)
+			logs := []string{}
+			for _, log := range stats.State.Health.Log {
+				logs = append(logs, log.Output)
+			}
+
+			return false, fmt.Errorf("container healthcheck failing: %s", strings.Join(logs, " "))
 		}
 
 		log.Debugf("Container in status %s", stats.State.Health.Status)
