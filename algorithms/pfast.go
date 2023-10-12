@@ -9,7 +9,7 @@ import (
 	"github.com/pako-23/gtdd/runners"
 )
 
-// iterationPFAST performs one iteration of the ex-linear strategy to detect
+// iterationPFAST performs one iteration of the pfast strategy to detect
 // dependencies between the tests of a test suite. The strategy works
 // as follows:
 //
@@ -75,7 +75,7 @@ func iterationPFAST(ctx context.Context, ch chan<- edgeChannelData) {
 	}
 }
 
-// PFAST implements the ex-linear strategy to detect dependencies between
+// PFAST implements the pfast strategy to detect dependencies between
 // the tests into a given test suite. If there is any error, it is returned.
 func PFAST(tests []string, r *runners.RunnerSet) (DependencyGraph, error) {
 	ch := make(chan edgeChannelData)

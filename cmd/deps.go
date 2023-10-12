@@ -63,7 +63,7 @@ func execDepsCmd(path string) error {
 	}()
 
 	switch strategy {
-	case "ex-linear":
+	case "pfast":
 		g, err = algorithms.PFAST(tests, runners)
 	case "pradet":
 		g, err = algorithms.PraDet(tests, runners)
@@ -138,7 +138,7 @@ func setupRunEnv(path string) (*runners.RunnerSet, []string) {
 func initDepsCmd() {
 	rootCmd.AddCommand(depsCmd)
 
-	depsCmd.Flags().StringVarP(&strategy, "strategy", "s", "ex-linear", "The strategy to detect dependencies between tests")
+	depsCmd.Flags().StringVarP(&strategy, "strategy", "s", "pfast", "The strategy to detect dependencies between tests")
 	depsCmd.Flags().UintVarP(&runnerCount, "runners", "r", runners.DefaultSetSize, "The number of concurrent runners")
 	depsCmd.Flags().StringVarP(&outputFileName, "output", "o", "graph.json", "The file used to output the resulting dependency graph")
 	depsCmd.Flags().StringArrayVarP(&testSuiteEnv, "var", "v", []string{}, "An environment variable to pass to the test suite container")
