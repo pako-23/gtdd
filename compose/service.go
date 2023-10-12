@@ -96,7 +96,7 @@ func (s *Service) run(ctx context.Context, ch chan<- serviceInstance, n *sync.Wa
 	}
 
 	if s.HealthCheck != nil {
-		log.Debug("Sleeping for %v", s.HealthCheck.StartPeriod)
+		log.Debug("sleeping for %v", s.HealthCheck.StartPeriod)
 		time.Sleep(s.HealthCheck.StartPeriod)
 	}
 
@@ -112,7 +112,7 @@ func (s *Service) run(ctx context.Context, ch chan<- serviceInstance, n *sync.Wa
 		}
 
 		if s.HealthCheck != nil {
-			log.Debug("Sleeping for %v", s.HealthCheck.Interval)
+			log.Debug("sleeping for %v", s.HealthCheck.Interval)
 			time.Sleep(s.HealthCheck.Interval)
 		}
 	}
