@@ -106,8 +106,8 @@ func (d DependencyGraph) GetDependencies(test string) map[string]struct{} {
 	queue = append(queue, test)
 
 	for len(queue) != 0 {
-		v := queue[0]
-		queue = queue[1:]
+		v := queue[len(queue)-1]
+		queue = queue[:len(queue)-1]
 
 		for u := range d[v] {
 			if _, seen := visited[u]; !seen {
@@ -185,7 +185,7 @@ func (d DependencyGraph) ToDOT(w io.Writer) {
 
 	for test, dependencies := range d {
 		for dependency := range dependencies {
-			w.Write([]byte(fmt.Sprintf("        \"%s\" -> \"%s\"\n", dependency, test)))
+			w.Write([]byte(fmt.Sprintf("        \"%s\" -> \"%s\"\n", test, dependency)))
 		}
 	}
 	w.Write([]byte("    }\n"))

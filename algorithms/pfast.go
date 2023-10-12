@@ -1,28 +1,15 @@
 package algorithms
 
 import (
+	"context"
 	"sync"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 
 	"github.com/pako-23/gtdd/runners"
 )
 
-// exLinearContext represents all the context data to execute one iteration of
-// the ex-linear strategy to detect dependencies between tests.
-type exLinearContext struct {
-	// The schedule from the previous iteration of the algorithm.
-	previousSchedule []string
-	// The test excluded from the first iteration of the algorithm.
-	excludedTest string
-	// The index of the test that failed from the previous iteration.
-	failedTest int
-	// The runners on which the test suites are run.
-	runners *runners.RunnerSet
-}
-
-// exLinearIteration performs one iteration of the ex-linear strategy to detect
+// iterationPFAST performs one iteration of the ex-linear strategy to detect
 // dependencies between the tests of a test suite. The strategy works
 // as follows:
 //
@@ -32,19 +19,26 @@ type exLinearContext struct {
 //     from the failed test and the test initially excluded. Then, proceed with
 //     a new iteration where the failed test is also excluded. If no test
 //     failed, do nothing.
-func exLinearIteration(ctx *exLinearContext, n *sync.WaitGroup, ch chan<- edgeChannelData) {
+func iterationPFAST(ctx context.Context, ch chan<- edgeChannelData) {
+	var (
+		excludedTest     = ctx.Value("excluded-test").(string)
+		failedTest       = ctx.Value("failed-test").(int)
+		n                = ctx.Value("wait-group").(*sync.WaitGroup)
+		previousSchedule = ctx.Value("previous-schedule").([]string)
+		runners          = ctx.Value("runners").(*runners.RunnerSet)
+	)
+
 	defer n.Done()
-	schedule := remove(ctx.previousSchedule, ctx.failedTest)
-	runnerID, err := ctx.runners.Reserve()
+	schedule := remove(previousSchedule, failedTest)
+	runnerID, err := runners.Reserve()
 	if err != nil {
 		ch <- edgeChannelData{edge: edge{from: "", to: ""}, err: err}
 
 		return
 	}
-	defer ctx.runners.Release(runnerID)
+	defer runners.Release(runnerID)
 
-	time.Sleep(StartUpTime)
-	results, err := ctx.runners.Get(runnerID).Run(schedule)
+	results, err := runners.Get(runnerID).Run(schedule)
 	if err != nil {
 		ch <- edgeChannelData{edge: edge{from: "", to: ""}, err: err}
 
@@ -60,7 +54,7 @@ func exLinearIteration(ctx *exLinearContext, n *sync.WaitGroup, ch chan<- edgeCh
 		ch <- edgeChannelData{
 			edge: edge{
 				from: schedule[firstFailed],
-				to:   ctx.excludedTest,
+				to:   excludedTest,
 			},
 			err: err,
 		}
@@ -70,33 +64,46 @@ func exLinearIteration(ctx *exLinearContext, n *sync.WaitGroup, ch chan<- edgeCh
 		}
 
 		n.Add(1)
-		go exLinearIteration(&exLinearContext{
-			previousSchedule: schedule,
-			excludedTest:     ctx.excludedTest,
-			failedTest:       firstFailed,
-			runners:          ctx.runners,
-		}, n, ch)
+
+		go iterationPFAST(
+			context.WithValue(
+				context.WithValue(ctx, "previous-schedule", schedule),
+				"failed-test", firstFailed,
+			),
+			ch,
+		)
 	}
 }
 
-// ExLinear implements the ex-linear strategy to detect dependencies between
+// PFAST implements the ex-linear strategy to detect dependencies between
 // the tests into a given test suite. If there is any error, it is returned.
-func ExLinear(tests []string, r *runners.RunnerSet) (DependencyGraph, error) {
+func PFAST(tests []string, r *runners.RunnerSet) (DependencyGraph, error) {
 	ch := make(chan edgeChannelData)
 	n := sync.WaitGroup{}
 	g := NewDependencyGraph(tests)
 
 	log.Debug("starting dependency detection algorithm")
 
+	ctx := context.WithValue(
+		context.WithValue(
+			context.Background(), "runners", r,
+		),
+		"wait-group", &n,
+	)
+
 	for i := 0; i < len(tests)-1; i++ {
 		n.Add(1)
 
-		go exLinearIteration(&exLinearContext{
-			previousSchedule: tests,
-			excludedTest:     tests[i],
-			failedTest:       i,
-			runners:          r,
-		}, &n, ch)
+		go iterationPFAST(
+			context.WithValue(
+				context.WithValue(
+					context.WithValue(ctx, "previous-schedule", tests),
+					"excluded-test", tests[i],
+				),
+				"failed-test", i,
+			),
+			ch,
+		)
 	}
 
 	go func() {

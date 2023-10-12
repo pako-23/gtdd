@@ -2,14 +2,13 @@ package algorithms
 
 import (
 	"fmt"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 
 	"github.com/pako-23/gtdd/runners"
 )
 
-func pradetEdgeSelection(g DependencyGraph, edges []edge, begin int) (int, map[string]struct{}) {
+func edgeSelectPraDet(g DependencyGraph, edges []edge, begin int) (int, map[string]struct{}) {
 	triedEdges := 1
 	g.InvertDependency(edges[begin].from, edges[begin].to)
 	deps := g.GetDependencies(edges[begin].to)
@@ -36,7 +35,7 @@ func pradetEdgeSelection(g DependencyGraph, edges []edge, begin int) (int, map[s
 	return begin, deps
 }
 
-func Pradet(tests []string, oracle *runners.RunnerSet) (DependencyGraph, error) {
+func PraDet(tests []string, oracle *runners.RunnerSet) (DependencyGraph, error) {
 	g := NewDependencyGraph(tests)
 	edges := []edge{}
 
@@ -55,7 +54,7 @@ func Pradet(tests []string, oracle *runners.RunnerSet) (DependencyGraph, error) 
 			return nil, fmt.Errorf("pradet could not reserve runner: %w", err)
 		}
 
-		it, deps := pradetEdgeSelection(g, edges, it)
+		it, deps := edgeSelectPraDet(g, edges, it)
 		if it == -1 {
 			break
 		}
@@ -68,7 +67,6 @@ func Pradet(tests []string, oracle *runners.RunnerSet) (DependencyGraph, error) 
 		}
 		schedule = append(schedule, edges[it].to)
 
-		time.Sleep(StartUpTime)
 		results, err := oracle.Get(runnerID).Run(schedule)
 		oracle.Release(runnerID)
 		if err != nil {

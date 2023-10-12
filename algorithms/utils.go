@@ -1,10 +1,8 @@
 package algorithms
 
-import "time"
-
-// StartUpTime represents the time to wait before running a test suite for the
-// app to be up and running.
-const StartUpTime = time.Second * 30
+// // StartUpTime represents the time to wait before running a test suite for the
+// // app to be up and running.
+// const StartUpTime = time.Second * 30
 
 // remove removes the element at a given index from a list of strings and
 // resulting list.

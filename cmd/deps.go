@@ -64,9 +64,9 @@ func execDepsCmd(path string) error {
 
 	switch strategy {
 	case "ex-linear":
-		g, err = algorithms.ExLinear(tests, runners)
+		g, err = algorithms.PFAST(tests, runners)
 	case "pradet":
-		g, err = algorithms.Pradet(tests, runners)
+		g, err = algorithms.PraDet(tests, runners)
 	default:
 		return errStrategyNotExisting
 	}

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/pako-23/gtdd/algorithms"
 	"github.com/pako-23/gtdd/runners"
@@ -60,8 +59,6 @@ func runSchedule(schedule []string, errCh chan error, resultsCh chan runResults,
 		return
 	}
 	defer r.Release(runnerID)
-
-	time.Sleep(algorithms.StartUpTime)
 
 	out, err := r.Get(runnerID).Run(schedule)
 	if err != nil {
