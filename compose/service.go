@@ -96,6 +96,7 @@ func (s *Service) run(ctx context.Context, ch chan<- serviceInstance, n *sync.Wa
 	}
 
 	if s.HealthCheck != nil {
+		log.Debug("Sleeping for %v", s.HealthCheck.StartPeriod)
 		time.Sleep(s.HealthCheck.StartPeriod)
 	}
 
@@ -110,6 +111,10 @@ func (s *Service) run(ctx context.Context, ch chan<- serviceInstance, n *sync.Wa
 			break
 		}
 
+		if s.HealthCheck != nil {
+			log.Debug("Sleeping for %v", s.HealthCheck.Interval)
+			time.Sleep(s.HealthCheck.Interval)
+		}
 	}
 
 	ch <- serviceInstance{ContainerID: containerID, ServiceName: name, Error: nil}
@@ -126,6 +131,7 @@ func checkRunning(ctx context.Context, cli *client.Client, containerID string) (
 			return false, fmt.Errorf("container healthcheck failing: %v", stats.State.Health.Log)
 		}
 
+		log.Debugf("Container in status %s", stats.State.Health.Status)
 		return stats.State.Health.Status == "healthy", nil
 	}
 
