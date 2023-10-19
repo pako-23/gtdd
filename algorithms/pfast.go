@@ -9,6 +9,8 @@ import (
 	"github.com/pako-23/gtdd/runners"
 )
 
+type PFAST struct{}
+
 // iterationPFAST performs one iteration of the pfast strategy to detect
 // dependencies between the tests of a test suite. The strategy works
 // as follows:
@@ -77,7 +79,7 @@ func iterationPFAST(ctx context.Context, ch chan<- edgeChannelData) {
 
 // PFAST implements the pfast strategy to detect dependencies between
 // the tests into a given test suite. If there is any error, it is returned.
-func PFAST(tests []string, r *runners.RunnerSet) (DependencyGraph, error) {
+func (_ *PFAST) FindDependencies(tests []string, r *runners.RunnerSet) (DependencyGraph, error) {
 	ch := make(chan edgeChannelData)
 	n := sync.WaitGroup{}
 	g := NewDependencyGraph(tests)

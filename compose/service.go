@@ -137,7 +137,7 @@ func checkRunning(ctx context.Context, cli *client.Client, containerID string) (
 			return false, fmt.Errorf("container healthcheck failing: %s", strings.Join(logs, " "))
 		}
 
-		log.Debugf("Container in status %s", stats.State.Health.Status)
+		log.Debugf("container in status %s", stats.State.Health.Status)
 		return stats.State.Health.Status == "healthy", nil
 	}
 

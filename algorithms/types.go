@@ -2,18 +2,26 @@ package algorithms
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 
+	"github.com/pako-23/gtdd/runners"
 	log "github.com/sirupsen/logrus"
 )
+
+var ErrDependencyDetectorNotExisting = errors.New("the dependency detection strategy does not exist")
 
 // edge represents a directed edge into the DependencyGraph.
 type edge struct {
 	from string
 	to   string
+}
+
+type DependencyDetector interface {
+	FindDependencies([]string, *runners.RunnerSet) (DependencyGraph, error)
 }
 
 // edgeChannelData represents the edge data exchanged on channels when running
@@ -219,4 +227,15 @@ func (d DependencyGraph) GetSchedules(tests []string) [][]string {
 	}
 
 	return schedules
+}
+
+func NewDependencyDetector(strategy string) (DependencyDetector, error) {
+	switch strategy {
+	case "pfast":
+		return &PFAST{}, nil
+	case "pradet":
+		return &PraDet{}, nil
+	default:
+		return nil, ErrDependencyDetectorNotExisting
+	}
 }

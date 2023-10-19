@@ -8,6 +8,8 @@ import (
 	"github.com/pako-23/gtdd/runners"
 )
 
+type PraDet struct{}
+
 func edgeSelectPraDet(g DependencyGraph, edges []edge, begin int) (int, map[string]struct{}) {
 	triedEdges := 1
 	g.InvertDependency(edges[begin].from, edges[begin].to)
@@ -16,11 +18,11 @@ func edgeSelectPraDet(g DependencyGraph, edges []edge, begin int) (int, map[stri
 	_, cycle := deps[edges[begin].to]
 
 	for cycle {
+		g.InvertDependency(edges[begin].to, edges[begin].from)
 		if triedEdges == len(edges) {
 			return -1, nil
 		}
 
-		g.InvertDependency(edges[begin].to, edges[begin].from)
 		begin += 1
 		if begin == len(edges) {
 			begin = 0
@@ -35,14 +37,14 @@ func edgeSelectPraDet(g DependencyGraph, edges []edge, begin int) (int, map[stri
 	return begin, deps
 }
 
-func PraDet(tests []string, oracle *runners.RunnerSet) (DependencyGraph, error) {
+func (_ *PraDet) FindDependencies(tests []string, oracle *runners.RunnerSet) (DependencyGraph, error) {
 	g := NewDependencyGraph(tests)
 	edges := []edge{}
 
-	for i := range tests {
-		for j := i + 1; j < len(tests); j++ {
-			edges = append(edges, edge{from: tests[j], to: tests[i]})
-			g.AddDependency(tests[j], tests[i])
+	for i := 1; i < len(tests); i++ {
+		for j := 0; j < i; j++ {
+			edges = append(edges, edge{from: tests[i], to: tests[j]})
+			g.AddDependency(tests[i], tests[j])
 		}
 	}
 
@@ -75,6 +77,7 @@ func PraDet(tests []string, oracle *runners.RunnerSet) (DependencyGraph, error) 
 		log.Debugf("run tests %v -> %v", schedule, results)
 
 		g.RemoveDependency(edges[it].to, edges[it].from)
+
 		if FindFailed(results) != -1 {
 			g.AddDependency(edges[it].from, edges[it].to)
 		}

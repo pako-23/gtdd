@@ -20,20 +20,35 @@ var (
 	logFile   string
 )
 
-// rootCmd represents the base command when called without any subcommands.
-var rootCmd = &cobra.Command{
-	Use:   "gtdd",
-	Short: "A tool to manage test suite dependency detection",
-	Long:  `A tool to manage test suite dependency detection`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
+func newRootCmd() *cobra.Command {
+	rootCommand := &cobra.Command{
+		Use:          "gtdd",
+		Short:        "A tool to manage test suite dependency detection",
+		Long:         `A tool to manage test suite dependency detection`,
+		SilenceUsage: true,
+	}
+
+	rootCommand.PersistentFlags().StringVar(&logLevel, "log", "info", "Log level")
+	rootCommand.PersistentFlags().StringVar(&logFormat, "format", "plain", "The log format")
+	rootCommand.PersistentFlags().StringVar(&logFile, "log-file", "", "The log file")
+
+	rootCommand.AddCommand(
+		newBuildCmd(),
+		newDepsCmd(),
+		newGraphCmd(),
+		newRunCmd(),
+		newSchedulesCmd(),
+	)
+
+	return rootCommand
+
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	if err := rootCmd.Execute(); err != nil {
+	if err := newRootCmd().Execute(); err != nil {
+		log.Error(err)
 		os.Exit(1)
 	}
 }
@@ -69,16 +84,4 @@ func configureLogging(cmd *cobra.Command, args []string) {
 	if err == nil {
 		log.SetOutput(file)
 	}
-}
-
-func init() {
-	rootCmd.PersistentFlags().StringVar(&logLevel, "log", "info", "Log level")
-	rootCmd.PersistentFlags().StringVar(&logFormat, "format", "plain", "The log format")
-	rootCmd.PersistentFlags().StringVar(&logFile, "log-file", "", "The log file")
-
-	initBuildCmd()
-	initDepsCmd()
-	initGraphCmd()
-	initRunCmd()
-	initSchedulesCmd()
 }

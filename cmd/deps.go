@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"errors"
 	"os"
 	"strings"
 
@@ -13,88 +12,76 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	// runnerCount represents the number of runners to run test suites to
-	// be allocated.
-	runnerCount uint
-	// strategy represents the strategy used to find dependencies between tests
-	// into the test suite.
-	strategy string
-	// outputFileName represents the name of the file where the artifacts
-	// of the program are outputted.
-	outputFileName string
-	// testSuiteEnv represents all the environment variables to be passed
-	// to the test suite when running it.
-	testSuiteEnv []string
-	// driver represents the image
-	driver []string
-	// errStrategyNotExisting represents the error returned a user provided
-	// strategy does not exist.
-	errStrategyNotExisting = errors.New("strategy does not exist")
-)
-
-// depsCmd represents the deps command.
-var depsCmd = &cobra.Command{
-	Use:   "deps [flags] [path to testsuite]",
-	Short: "Finds all the dependencies between tests into a test suite",
-	Args:  cobra.ExactArgs(1),
-	Long: `Finds all the dependencies between tests into a provided test
-suite. The artifacts to run the test suite should already be
-built.`,
-	PreRun: configureLogging,
-	Run: func(cmd *cobra.Command, args []string) {
-		if err := execDepsCmd(args[0]); err != nil {
-			log.Fatal(err)
-		}
-	},
-}
-
-func execDepsCmd(path string) error {
+func newDepsCmd() *cobra.Command {
 	var (
-		g   algorithms.DependencyGraph
-		err error
+		runnerCount    uint
+		strategy       string
+		outputFileName string
+		testSuiteEnv   []string
+		driver         []string
 	)
 
-	runners, tests := setupRunEnv(path)
-	defer func() {
-		if err := runners.Delete(); err != nil {
-			log.Error(err)
-		}
-	}()
+	depsCommand := &cobra.Command{
+		Use:   "deps [flags] [path to testsuite]",
+		Short: "Finds all the dependencies between tests into a test suite",
+		Args:  cobra.ExactArgs(1),
+		Long: `Finds all the dependencies between tests into a provided test
+	suite. The artifacts to run the test suite should already be
+	built.`,
+		PreRun: configureLogging,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			path := args[0]
 
-	switch strategy {
-	case "pfast":
-		g, err = algorithms.PFAST(tests, runners)
-	case "pradet":
-		g, err = algorithms.PraDet(tests, runners)
-	default:
-		return errStrategyNotExisting
+			detector, err := algorithms.NewDependencyDetector(strategy)
+			if err != nil {
+				return err
+			}
+
+			runners, tests, err := setupRunEnv(path, driver, testSuiteEnv, runnerCount)
+			if err != nil {
+				return err
+			}
+			defer func() {
+				if err := runners.Delete(); err != nil {
+					log.Error(err)
+				}
+			}()
+
+			g, err := detector.FindDependencies(tests, runners)
+			if err != nil {
+				return err
+			}
+
+			g.TransitiveReduction()
+
+			file, err := os.Create(outputFileName)
+			if err != nil {
+				log.Fatalf("failed to create output file %s: %w", outputFileName, err)
+			}
+			defer file.Close()
+
+			g.ToJSON(file)
+
+			return nil
+		},
 	}
 
-	if err != nil {
-		return err
-	}
+	depsCommand.Flags().StringVarP(&strategy, "strategy", "s", "pfast", "The strategy to detect dependencies between tests")
+	depsCommand.Flags().UintVarP(&runnerCount, "runners", "r", runners.DefaultSetSize, "The number of concurrent runners")
+	depsCommand.Flags().StringVarP(&outputFileName, "output", "o", "graph.json", "The file used to output the resulting dependency graph")
+	depsCommand.Flags().StringArrayVarP(&testSuiteEnv, "var", "v", []string{}, "An environment variable to pass to the test suite container")
+	depsCommand.Flags().StringArrayVarP(&driver, "driver", "d", []string{}, "The driver image in the form <name>=<image>")
 
-	g.TransitiveReduction()
-
-	file, err := os.Create(outputFileName)
-	if err != nil {
-		log.Fatalf("failed to create json from data: %w", err)
-	}
-	defer file.Close()
-
-	g.ToJSON(file)
-
-	return nil
+	return depsCommand
 }
 
 // setupRunEnv is a utility function to setup the resources needed to run
 // the test suite. It returns the runners to run the test suite and the list
 // of tests into the test suite in their original order.
-func setupRunEnv(path string) (*runners.RunnerSet, []string) {
+func setupRunEnv(path string, driver, testSuiteEnv []string, runnerCount uint) (*runners.RunnerSet, []string, error) {
 	suite, err := testsuite.FactoryTestSuite("java")
 	if err != nil {
-		log.Fatal(err)
+		return nil, nil, err
 	}
 
 	app, err := compose.NewApp(&compose.AppConfig{
@@ -102,12 +89,12 @@ func setupRunEnv(path string) (*runners.RunnerSet, []string) {
 		ComposeFile: "docker-compose.yml",
 	})
 	if err != nil {
-		log.Fatal(err)
+		return nil, nil, err
 	}
 
 	tests, err := suite.ListTests()
 	if err != nil {
-		log.Fatal(err)
+		return nil, nil, err
 	}
 	log.Debugf("test suite contains tests: %v", tests)
 
@@ -128,19 +115,8 @@ func setupRunEnv(path string) (*runners.RunnerSet, []string) {
 		TestSuiteEnv: testSuiteEnv,
 	})
 	if err != nil {
-		log.Fatal(err)
+		return nil, nil, err
 	}
 
-	return runners, tests
-}
-
-// initDepsCmd initializes the deps command flags.
-func initDepsCmd() {
-	rootCmd.AddCommand(depsCmd)
-
-	depsCmd.Flags().StringVarP(&strategy, "strategy", "s", "pfast", "The strategy to detect dependencies between tests")
-	depsCmd.Flags().UintVarP(&runnerCount, "runners", "r", runners.DefaultSetSize, "The number of concurrent runners")
-	depsCmd.Flags().StringVarP(&outputFileName, "output", "o", "graph.json", "The file used to output the resulting dependency graph")
-	depsCmd.Flags().StringArrayVarP(&testSuiteEnv, "var", "v", []string{}, "An environment variable to pass to the test suite container")
-	depsCmd.Flags().StringArrayVarP(&driver, "driver", "d", []string{}, "The driver image in the form <name>=<image>")
+	return runners, tests, nil
 }
