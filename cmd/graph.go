@@ -13,10 +13,10 @@ func newGraphCmd() *cobra.Command {
 		Short: "Generate a Graphviz graph of the dependencies between tests",
 		Args:  cobra.ExactArgs(1),
 		Long: `Produces a representation of the dependency graph between different
-	tests of a test suite.
+tests of a test suite.
 
-	The graph is presented in the DOT language. The typical program that can
-	read this format is GraphViz.`,
+The graph is presented in the DOT language. The typical program that can
+read this format is GraphViz.`,
 		PreRun: configureLogging,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			g, err := algorithms.DependencyGraphFromJson(args[0])

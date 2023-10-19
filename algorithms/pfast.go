@@ -38,7 +38,7 @@ func iterationPFAST(ctx context.Context, ch chan<- edgeChannelData) {
 
 		return
 	}
-	defer runners.Release(runnerID)
+	defer func() { go runners.Release(runnerID) }()
 
 	results, err := runners.Get(runnerID).Run(schedule)
 	if err != nil {

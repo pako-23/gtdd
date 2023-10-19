@@ -29,8 +29,8 @@ func newRunCmd() *cobra.Command {
 		Short: "Run a test suite with parallelism based on with a given graph",
 		Args:  cobra.ExactArgs(1),
 		Long: `Runs a given test suite in parallel. The parallel schedules are
-	computed based on a given graph. If no graph is provided, it
-	will run the tests in the original order.`,
+computed based on a given graph. If no graph is provided, it
+will run the tests in the original order.`,
 		PreRun: configureLogging,
 		RunE: func(cmd *cobra.Command, args []string) error {
 
@@ -96,7 +96,7 @@ func runSchedule(schedule []string, errCh chan error, resultsCh chan runResults,
 
 		return
 	}
-	defer r.Release(runnerID)
+	defer func() { go r.Release(runnerID) }()
 
 	out, err := r.Get(runnerID).Run(schedule)
 	if err != nil {

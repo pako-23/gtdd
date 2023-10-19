@@ -51,11 +51,6 @@ func (_ *PraDet) FindDependencies(tests []string, oracle *runners.RunnerSet) (De
 	log.Debug("starting dependency detection algorithm")
 	it := 0
 	for len(edges) > 0 {
-		runnerID, err := oracle.Reserve()
-		if err != nil {
-			return nil, fmt.Errorf("pradet could not reserve runner: %w", err)
-		}
-
 		it, deps := edgeSelectPraDet(g, edges, it)
 		if it == -1 {
 			break
@@ -69,8 +64,13 @@ func (_ *PraDet) FindDependencies(tests []string, oracle *runners.RunnerSet) (De
 		}
 		schedule = append(schedule, edges[it].to)
 
+		runnerID, err := oracle.Reserve()
+		if err != nil {
+			return nil, fmt.Errorf("pradet could not reserve runner: %w", err)
+		}
+
 		results, err := oracle.Get(runnerID).Run(schedule)
-		oracle.Release(runnerID)
+		go oracle.Release(runnerID)
 		if err != nil {
 			return nil, fmt.Errorf("pradet could not run schedule: %w", err)
 		}

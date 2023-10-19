@@ -26,8 +26,8 @@ func newDepsCmd() *cobra.Command {
 		Short: "Finds all the dependencies between tests into a test suite",
 		Args:  cobra.ExactArgs(1),
 		Long: `Finds all the dependencies between tests into a provided test
-	suite. The artifacts to run the test suite should already be
-	built.`,
+suite. The artifacts to run the test suite should already be
+built.`,
 		PreRun: configureLogging,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := args[0]
@@ -97,8 +97,6 @@ func setupRunEnv(path string, driver, testSuiteEnv []string, runnerCount uint) (
 		return nil, nil, err
 	}
 	log.Debugf("test suite contains tests: %v", tests)
-
-	// "selenium": {Image: "selenium/standalone-chrome:115.0"},
 
 	services := map[string]*compose.Service{}
 

@@ -3,6 +3,7 @@ package runners
 import (
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/pako-23/gtdd/compose"
 	"github.com/pako-23/gtdd/testsuite"
@@ -40,6 +41,8 @@ type RunnerSet struct {
 // NewRunnerSet creates a new set of runner with the provided configuration.
 // If there is an error in creating the set of runners, it is returned.
 func NewRunnerSet(config *RunnerSetConfig) (*RunnerSet, error) {
+	var n sync.WaitGroup
+
 	set := RunnerSet{
 		runners: map[string]*Runner{},
 		tokens:  make(chan string, config.Runners),
@@ -51,7 +54,6 @@ func NewRunnerSet(config *RunnerSetConfig) (*RunnerSet, error) {
 
 	for i := uint(0); i < config.Runners; i++ {
 		runnerName := fmt.Sprintf("runner-%d", i)
-		set.tokens <- runnerName
 		runner, err := NewRunner(&RunnerConfig{
 			RunnerSetConfig: *config,
 			Name:            runnerName,
@@ -64,8 +66,15 @@ func NewRunnerSet(config *RunnerSetConfig) (*RunnerSet, error) {
 			return nil, err
 		}
 		set.runners[runnerName] = runner
+
+		go func(runnerID string) {
+			n.Add(1)
+			defer n.Done()
+			set.Release(runnerName)
+		}(runnerName)
 	}
-	log.Infof("successfully initialized %d runners", config.Runners)
+	n.Wait()
+	log.Infof("successfully initialized %d runners", len(set.runners))
 
 	return &set, nil
 }
@@ -73,17 +82,24 @@ func NewRunnerSet(config *RunnerSetConfig) (*RunnerSet, error) {
 // Delete releases all the resources needed by the set of runners.
 // If there is an error in the process, it is returned.
 func (r *RunnerSet) Delete() error {
-	close(r.tokens)
-
 	var waitgroup errgroup.Group
+	for range r.runners {
+		waitgroup.Go(func() error {
+			runnerID, err := r.Reserve()
+			if err == ErrNoRunner {
+				return nil
+			} else if err != nil {
+				return err
+			}
 
-	for _, runner := range r.runners {
-		waitgroup.Go(runner.Delete)
+			return r.Get(runnerID).Delete()
+		})
 	}
 
 	if err := waitgroup.Wait(); err != nil {
 		return fmt.Errorf("failed to delete set of runners: %w", err)
 	}
+	close(r.tokens)
 
 	return nil
 }
@@ -93,25 +109,30 @@ func (r *RunnerSet) Delete() error {
 // If there is any error in reserving the runner or resetting the application,
 // it is returned.
 func (r *RunnerSet) Reserve() (string, error) {
-	runnerID := <-r.tokens
-
-	runner, ok := r.runners[runnerID]
-	if !ok {
+	if len(r.runners) == 0 {
 		return "", ErrNoRunner
 	}
 
-	if err := runner.ResetApplication(); err != nil {
-		r.Release(runnerID)
-
-		return "", err
-	}
-
-	return runnerID, nil
+	return <-r.tokens, nil
 }
 
 // Release deletes the reservation for a given runner. It requires the
 // identifier of the reserved runner to release it.
 func (r *RunnerSet) Release(runnerID string) {
+	if runner, ok := r.runners[runnerID]; !ok {
+		log.Errorf("failed to release runner %s: runner not found", runnerID)
+
+		return
+	} else if err := runner.ResetApplication(); err != nil {
+		log.Errorf("failed to reset application on runner %s: %w", runnerID, err)
+		if err = runner.Delete(); err != nil {
+			log.Errorf("failed to delete runner %s: %w", runnerID, err)
+		}
+		delete(r.runners, runnerID)
+
+		return
+	}
+
 	r.tokens <- runnerID
 }
 
