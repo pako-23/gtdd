@@ -20,6 +20,7 @@ func edgeSelectPraDet(g DependencyGraph, edges []edge, begin int) (int, map[stri
 	for cycle {
 		g.InvertDependency(edges[begin].to, edges[begin].from)
 		if triedEdges == len(edges) {
+			log.Debugf("ending with length of edges: %v", len(edges))
 			return -1, nil
 		}
 
@@ -84,7 +85,7 @@ func (_ *PraDet) FindDependencies(tests []string, oracle *runners.RunnerSet) (De
 
 		edges = append(edges[:it], edges[it+1:]...)
 		it += 1
-		if it == len(edges) {
+		if it > len(edges) {
 			it = 0
 		}
 	}

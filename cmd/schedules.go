@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/pako-23/gtdd/algorithms"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -27,11 +26,10 @@ func newSchedulesCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer func() {
-				if err := runners.Delete(); err != nil {
-					log.Error(err)
-				}
-			}()
+
+			if err := runners.Delete(); err != nil {
+				return err
+			}
 
 			schedules, err := getSchedules(tests, inputFileName)
 			if err != nil {

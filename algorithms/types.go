@@ -107,20 +107,20 @@ func (d DependencyGraph) InvertDependency(from, to string) {
 func (d DependencyGraph) GetDependencies(test string) map[string]struct{} {
 	var (
 		dependencies = map[string]struct{}{}
-		queue        = []string{}
+		stack        = []string{}
 		visited      = map[string]struct{}{}
 	)
 
-	queue = append(queue, test)
+	stack = append(stack, test)
 
-	for len(queue) != 0 {
-		v := queue[len(queue)-1]
-		queue = queue[:len(queue)-1]
+	for len(stack) != 0 {
+		v := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
 
 		for u := range d[v] {
 			if _, seen := visited[u]; !seen {
 				dependencies[u] = struct{}{}
-				queue = append(queue, u)
+				stack = append(stack, u)
 			} else if u == test {
 				dependencies[u] = struct{}{}
 			}

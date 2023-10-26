@@ -35,6 +35,7 @@ func iterationPFAST(ctx context.Context, ch chan<- edgeChannelData) {
 	runnerID, err := runners.Reserve()
 	if err != nil {
 		ch <- edgeChannelData{edge: edge{from: "", to: ""}, err: err}
+		// log.Debugf("Excluded: %s, sent edge: %v", excludedTest, edgeChannelData{edge: edge{from: "", to: ""}, err: nil})
 
 		return
 	}
@@ -43,16 +44,24 @@ func iterationPFAST(ctx context.Context, ch chan<- edgeChannelData) {
 	results, err := runners.Get(runnerID).Run(schedule)
 	if err != nil {
 		ch <- edgeChannelData{edge: edge{from: "", to: ""}, err: err}
+		// log.Debugf("Excluded: %s, sent edge: %v", excludedTest, edgeChannelData{edge: edge{from: "", to: ""}, err: nil})
 
 		return
 	}
 
-	log.Debugf("run tests %v -> %v", schedule, results)
-
-	firstFailed := FindFailed(results)
-	if firstFailed == -1 {
+	if firstFailed := FindFailed(results); firstFailed == -1 {
+		log.Debugf("run tests %v -> %v, sending: %v", schedule, results, edgeChannelData{edge: edge{from: "", to: ""}, err: nil})
 		ch <- edgeChannelData{edge: edge{from: "", to: ""}, err: nil}
+		// log.Debugf("Excluded: %s, sent edge: %v", excludedTest, edgeChannelData{edge: edge{from: "", to: ""}, err: nil})
 	} else {
+
+		log.Debugf("run tests %v -> %v, sending: %v", schedule, results, edgeChannelData{
+			edge: edge{
+				from: schedule[firstFailed],
+				to:   excludedTest,
+			},
+			err: err,
+		})
 		ch <- edgeChannelData{
 			edge: edge{
 				from: schedule[firstFailed],
@@ -110,10 +119,13 @@ func (_ *PFAST) FindDependencies(tests []string, r *runners.RunnerSet) (Dependen
 
 	go func() {
 		n.Wait()
+		// schedules := g.GetSchedules(tests)
+
 		close(ch)
 	}()
 
 	for result := range ch {
+		log.Debugf("channel receive: %v", result)
 		if result.err != nil {
 			return nil, result.err
 		} else if result.from != "" && result.to != "" {
