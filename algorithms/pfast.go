@@ -21,13 +21,13 @@ type PFAST struct{}
 //     from the failed test and the test initially excluded. Then, proceed with
 //     a new iteration where the failed test is also excluded. If no test
 //     failed, do nothing.
-func iterationPFAST(ctx context.Context, ch chan<- edgeChannelData) {
+func iterationPFAST(ctx context.Context, excludedTest string, failedTest int, previousSchedule []string, ch chan<- edgeChannelData) {
 	var (
-		excludedTest     = ctx.Value("excluded-test").(string)
-		failedTest       = ctx.Value("failed-test").(int)
-		n                = ctx.Value("wait-group").(*sync.WaitGroup)
-		previousSchedule = ctx.Value("previous-schedule").([]string)
-		runners          = ctx.Value("runners").(*runners.RunnerSet)
+		// excludedTest     = ctx.Value("excluded-test").(string)
+		// failedTest       = ctx.Value("failed-test").(int)
+		n = ctx.Value("wait-group").(*sync.WaitGroup)
+		// previousSchedule = ctx.Value("previous-schedule").([]string)
+		runners = ctx.Value("runners").(*runners.RunnerSet)
 	)
 
 	defer n.Done()
@@ -35,7 +35,6 @@ func iterationPFAST(ctx context.Context, ch chan<- edgeChannelData) {
 	runnerID, err := runners.Reserve()
 	if err != nil {
 		ch <- edgeChannelData{edge: edge{from: "", to: ""}, err: err}
-		// log.Debugf("Excluded: %s, sent edge: %v", excludedTest, edgeChannelData{edge: edge{from: "", to: ""}, err: nil})
 
 		return
 	}
@@ -44,30 +43,17 @@ func iterationPFAST(ctx context.Context, ch chan<- edgeChannelData) {
 	results, err := runners.Get(runnerID).Run(schedule)
 	if err != nil {
 		ch <- edgeChannelData{edge: edge{from: "", to: ""}, err: err}
-		// log.Debugf("Excluded: %s, sent edge: %v", excludedTest, edgeChannelData{edge: edge{from: "", to: ""}, err: nil})
 
 		return
 	}
 
-	if firstFailed := FindFailed(results); firstFailed == -1 {
-		log.Debugf("run tests %v -> %v, sending: %v", schedule, results, edgeChannelData{edge: edge{from: "", to: ""}, err: nil})
-		ch <- edgeChannelData{edge: edge{from: "", to: ""}, err: nil}
-		// log.Debugf("Excluded: %s, sent edge: %v", excludedTest, edgeChannelData{edge: edge{from: "", to: ""}, err: nil})
-	} else {
-
-		log.Debugf("run tests %v -> %v, sending: %v", schedule, results, edgeChannelData{
-			edge: edge{
-				from: schedule[firstFailed],
-				to:   excludedTest,
-			},
-			err: err,
-		})
+	if firstFailed := FindFailed(results); firstFailed != -1 {
 		ch <- edgeChannelData{
 			edge: edge{
 				from: schedule[firstFailed],
 				to:   excludedTest,
 			},
-			err: err,
+			err: nil,
 		}
 
 		if len(schedule) == 1 {
@@ -76,13 +62,15 @@ func iterationPFAST(ctx context.Context, ch chan<- edgeChannelData) {
 
 		n.Add(1)
 
-		go iterationPFAST(
-			context.WithValue(
-				context.WithValue(ctx, "previous-schedule", schedule),
-				"failed-test", firstFailed,
-			),
-			ch,
-		)
+		go iterationPFAST(ctx, excludedTest, firstFailed, schedule, ch)
+
+		// go iterationPFAST(
+		// 	context.WithValue(
+		// 		context.WithValue(ctx, "previous-schedule", schedule),
+		// 		"failed-test", firstFailed,
+		// 	),
+		// 	ch,
+		// )
 	}
 }
 
@@ -105,16 +93,18 @@ func (_ *PFAST) FindDependencies(tests []string, r *runners.RunnerSet) (Dependen
 	for i := 0; i < len(tests)-1; i++ {
 		n.Add(1)
 
-		go iterationPFAST(
-			context.WithValue(
-				context.WithValue(
-					context.WithValue(ctx, "previous-schedule", tests),
-					"excluded-test", tests[i],
-				),
-				"failed-test", i,
-			),
-			ch,
-		)
+		// go iterationPFAST(
+		// 	context.WithValue(
+		// 		context.WithValue(
+		// 			context.WithValue(ctx, "previous-schedule", tests),
+		// 			"excluded-test", tests[i],
+		// 		),
+		// 		"failed-test", i,
+		// 	),
+		// 	ch,
+		// )
+
+		go iterationPFAST(ctx, tests[i], i, tests, ch)
 	}
 
 	go func() {
@@ -128,9 +118,8 @@ func (_ *PFAST) FindDependencies(tests []string, r *runners.RunnerSet) (Dependen
 		log.Debugf("channel receive: %v", result)
 		if result.err != nil {
 			return nil, result.err
-		} else if result.from != "" && result.to != "" {
-			g.AddDependency(result.from, result.to)
 		}
+		g.AddDependency(result.from, result.to)
 	}
 
 	log.Debug("finished dependency detection algorithm")
