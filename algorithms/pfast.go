@@ -23,10 +23,7 @@ type PFAST struct{}
 //     failed, do nothing.
 func iterationPFAST(ctx context.Context, excludedTest string, failedTest int, previousSchedule []string, ch chan<- edgeChannelData) {
 	var (
-		// excludedTest     = ctx.Value("excluded-test").(string)
-		// failedTest       = ctx.Value("failed-test").(int)
-		n = ctx.Value("wait-group").(*sync.WaitGroup)
-		// previousSchedule = ctx.Value("previous-schedule").([]string)
+		n       = ctx.Value("wait-group").(*sync.WaitGroup)
 		runners = ctx.Value("runners").(*runners.RunnerSet)
 	)
 
@@ -63,14 +60,6 @@ func iterationPFAST(ctx context.Context, excludedTest string, failedTest int, pr
 		n.Add(1)
 
 		go iterationPFAST(ctx, excludedTest, firstFailed, schedule, ch)
-
-		// go iterationPFAST(
-		// 	context.WithValue(
-		// 		context.WithValue(ctx, "previous-schedule", schedule),
-		// 		"failed-test", firstFailed,
-		// 	),
-		// 	ch,
-		// )
 	}
 }
 
@@ -92,17 +81,6 @@ func (_ *PFAST) FindDependencies(tests []string, r *runners.RunnerSet) (Dependen
 
 	for i := 0; i < len(tests)-1; i++ {
 		n.Add(1)
-
-		// go iterationPFAST(
-		// 	context.WithValue(
-		// 		context.WithValue(
-		// 			context.WithValue(ctx, "previous-schedule", tests),
-		// 			"excluded-test", tests[i],
-		// 		),
-		// 		"failed-test", i,
-		// 	),
-		// 	ch,
-		// )
 
 		go iterationPFAST(ctx, tests[i], i, tests, ch)
 	}

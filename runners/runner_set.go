@@ -48,7 +48,7 @@ func NewRunnerSet(config *RunnerSetConfig) (*RunnerSet, error) {
 		tokens:  make(chan string, config.Runners),
 	}
 	if err := config.Driver.Pull(); err != nil {
-		return nil, fmt.Errorf("failed to pull driver artifacts when creating set of runners: %w", err)
+		return nil, fmt.Errorf("failed to pull driver artifacts when creating runner set: %w", err)
 	}
 	log.Debugf("successfully pulled images for the test driver")
 

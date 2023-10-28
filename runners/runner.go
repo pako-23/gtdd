@@ -55,9 +55,9 @@ func NewRunner(config *RunnerConfig) (*Runner, error) {
 
 	net, err := cli.NetworkCreate(ctx, config.Name, types.NetworkCreate{})
 	if err != nil {
-		return nil, fmt.Errorf("network creation failed for runner %s: %w", config.Name, err)
+		return nil, fmt.Errorf("failed to create network: %w", err)
 	}
-	log.Debugf("successfully created network %s with ID %s", config.Name, net.ID)
+	log.Debugf("[runner=%s] successfully created network with ID %s", config.Name, net.ID)
 
 	runner := &Runner{
 		app:           compose.AppInstance{},
@@ -81,7 +81,8 @@ func NewRunner(config *RunnerConfig) (*Runner, error) {
 		runner.driver = driver
 	}
 	runner.testSuiteEnv = runner.translateEnv(config.TestSuiteEnv)
-	log.Debugf("successfully initialized runner %s", config.Name)
+	log.Debugf("[runner=%s] successfully initialized", config.Name)
+
 	return runner, nil
 }
 
@@ -116,7 +117,7 @@ func (r *Runner) translateEnv(variables []string) []string {
 // If there is an error in the process, it is returned.
 func (r *Runner) ResetApplication() error {
 	if err := r.app.Delete(); err != nil {
-		return fmt.Errorf("app deletion failed when resetting app on runner %s: %w", r.name, err)
+		return fmt.Errorf("app deletion failed in app reset:  %w", err)
 	}
 
 	instance, err := r.appDefinition.Start(&compose.StartConfig{
@@ -124,10 +125,10 @@ func (r *Runner) ResetApplication() error {
 		Networks: []string{r.network},
 	})
 	if err != nil {
-		return fmt.Errorf("app start-up failed when resetting app on runner %s: %w", r.name, err)
+		return fmt.Errorf("app start-up failed in app reset: %w", err)
 	}
 	r.app = instance
-	log.Debugf("successfully reset app on runner %s", r.name)
+	log.Debugf("[runner=%s] successfully reset app", r.name)
 
 	return nil
 }
@@ -137,7 +138,7 @@ func (r *Runner) ResetApplication() error {
 func (r *Runner) Delete() error {
 	cli, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())
 	if err != nil {
-		return fmt.Errorf("failed to create client to delete runner %s: %w", r.name, err)
+		return fmt.Errorf("failed to create docker client for runner deletion: %w", err)
 	}
 	defer cli.Close()
 	ctx := context.Background()
@@ -145,17 +146,17 @@ func (r *Runner) Delete() error {
 	if err := r.driver.Delete(); err != nil {
 		return fmt.Errorf("driver deletion failed when deleting runner %s: %w", r.name, err)
 	}
-	log.Debugf("successfully deleted driver on runner %s", r.name)
+	log.Debugf("[runner=%s] successfully deleted driver", r.name)
 
 	if err := r.app.Delete(); err != nil {
 		return fmt.Errorf("app deletion failed when deleting runner %s: %w", r.name, err)
 	}
-	log.Debugf("successfully deleted app on runner %s", r.name)
+	log.Debugf("[runner=%s] successfully deleted app", r.name)
 
 	if err := cli.NetworkRemove(ctx, r.network); err != nil {
 		return fmt.Errorf("network deletion failed when deleting runner %s: %w", r.name, err)
 	}
-	log.Debugf("successfully deleted network on runner %s", r.name)
+	log.Debugf("[runner=%s] successfully deleted network", r.name)
 
 	return nil
 }

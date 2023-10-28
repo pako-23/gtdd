@@ -10,32 +10,31 @@ import (
 
 type PraDet struct{}
 
-func edgeSelectPraDet(g DependencyGraph, edges []edge, begin int) (int, map[string]struct{}) {
+func edgeSelectPraDet(g DependencyGraph, edges []edge, it *int) map[string]struct{} {
 	triedEdges := 1
-	g.InvertDependency(edges[begin].from, edges[begin].to)
-	deps := g.GetDependencies(edges[begin].to)
+	g.InvertDependency(edges[*it].from, edges[*it].to)
+	deps := g.GetDependencies(edges[*it].to)
 
-	_, cycle := deps[edges[begin].to]
+	_, cycle := deps[edges[*it].to]
 
 	for cycle {
-		g.InvertDependency(edges[begin].to, edges[begin].from)
+		g.InvertDependency(edges[*it].to, edges[*it].from)
 		if triedEdges == len(edges) {
-			log.Debugf("ending with length of edges: %v", len(edges))
-			return -1, nil
+			return nil
 		}
 
-		begin += 1
-		if begin == len(edges) {
-			begin = 0
+		*it += 1
+		if *it == len(edges) {
+			*it = 0
 		}
 		triedEdges += 1
 
-		g.InvertDependency(edges[begin].from, edges[begin].to)
-		deps = g.GetDependencies(edges[begin].to)
-		_, cycle = deps[edges[begin].to]
+		g.InvertDependency(edges[*it].from, edges[*it].to)
+		deps = g.GetDependencies(edges[*it].to)
+		_, cycle = deps[edges[*it].to]
 	}
 
-	return begin, deps
+	return deps
 }
 
 func (_ *PraDet) FindDependencies(tests []string, oracle *runners.RunnerSet) (DependencyGraph, error) {
@@ -43,16 +42,16 @@ func (_ *PraDet) FindDependencies(tests []string, oracle *runners.RunnerSet) (De
 	edges := []edge{}
 
 	for i := 1; i < len(tests); i++ {
-		for j := 0; j < i; j++ {
-			edges = append(edges, edge{from: tests[i], to: tests[j]})
-			g.AddDependency(tests[i], tests[j])
+		for j := i; j < len(tests); j++ {
+			edges = append(edges, edge{from: tests[j], to: tests[j-i]})
+			g.AddDependency(tests[j], tests[j-i])
 		}
 	}
 
 	log.Debug("starting dependency detection algorithm")
 	it := 0
 	for len(edges) > 0 {
-		it, deps := edgeSelectPraDet(g, edges, it)
+		deps := edgeSelectPraDet(g, edges, &it)
 		if it == -1 {
 			break
 		}
@@ -84,7 +83,6 @@ func (_ *PraDet) FindDependencies(tests []string, oracle *runners.RunnerSet) (De
 		}
 
 		edges = append(edges[:it], edges[it+1:]...)
-		it += 1
 		if it > len(edges) {
 			it = 0
 		}
