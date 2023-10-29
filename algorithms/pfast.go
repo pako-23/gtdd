@@ -44,6 +44,7 @@ func iterationPFAST(ctx context.Context, excludedTest, failedTest int, previousS
 
 		return
 	}
+	log.Debugf("run tests %v -> %v", schedule, results)
 
 	firstFailed := FindFailed(results)
 	if firstFailed == -1 {
