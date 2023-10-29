@@ -21,10 +21,11 @@ type PFAST struct{}
 //     from the failed test and the test initially excluded. Then, proceed with
 //     a new iteration where the failed test is also excluded. If no test
 //     failed, do nothing.
-func iterationPFAST(ctx context.Context, excludedTest string, failedTest int, previousSchedule []string, ch chan<- edgeChannelData) {
+func iterationPFAST(ctx context.Context, excludedTest, failedTest int, previousSchedule []string, ch chan<- edgeChannelData) {
 	var (
 		n       = ctx.Value("wait-group").(*sync.WaitGroup)
 		runners = ctx.Value("runners").(*runners.RunnerSet)
+		tests   = ctx.Value("tests").([]string)
 	)
 
 	defer n.Done()
@@ -44,11 +45,22 @@ func iterationPFAST(ctx context.Context, excludedTest string, failedTest int, pr
 		return
 	}
 
-	if firstFailed := FindFailed(results); firstFailed != -1 {
+	firstFailed := FindFailed(results)
+	if firstFailed == -1 {
+		return
+	}
+
+	if firstFailed < excludedTest {
+		n.Add(1)
+
+		// log.Infof("failed smaller tests, excluded test: %s, tests: %v, failed test: %s", tests[excludedTest], tests, tests[firstFailed])
+		go iterationPFAST(ctx, excludedTest, firstFailed, previousSchedule, ch)
+	} else {
+		// log.Infof("sending over channel: %v, test results  %v -> %v", d, schedule, results)
 		ch <- edgeChannelData{
 			edge: edge{
 				from: schedule[firstFailed],
-				to:   excludedTest,
+				to:   tests[excludedTest],
 			},
 			err: nil,
 		}
@@ -58,7 +70,6 @@ func iterationPFAST(ctx context.Context, excludedTest string, failedTest int, pr
 		}
 
 		n.Add(1)
-
 		go iterationPFAST(ctx, excludedTest, firstFailed, schedule, ch)
 	}
 }
@@ -74,15 +85,17 @@ func (_ *PFAST) FindDependencies(tests []string, r *runners.RunnerSet) (Dependen
 
 	ctx := context.WithValue(
 		context.WithValue(
-			context.Background(), "runners", r,
-		),
-		"wait-group", &n,
+			context.WithValue(
+				context.Background(), "runners", r,
+			),
+			"wait-group", &n,
+		), "tests", tests,
 	)
 
 	for i := 0; i < len(tests)-1; i++ {
 		n.Add(1)
 
-		go iterationPFAST(ctx, tests[i], i, tests, ch)
+		go iterationPFAST(ctx, i, i, tests, ch)
 	}
 
 	go func() {
@@ -97,6 +110,9 @@ func (_ *PFAST) FindDependencies(tests []string, r *runners.RunnerSet) (Dependen
 		if result.err != nil {
 			return nil, result.err
 		}
+
+		// log.Infof("adding edge: %s -> %s", result.from, result.to)
+
 		g.AddDependency(result.from, result.to)
 	}
 
