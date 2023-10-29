@@ -83,7 +83,7 @@ func (_ *PraDet) FindDependencies(tests []string, oracle *runners.RunnerSet) (De
 		}
 
 		edges = append(edges[:it], edges[it+1:]...)
-		if it > len(edges) {
+		if it == len(edges) {
 			it = 0
 		}
 	}
