@@ -54,7 +54,7 @@ func (_ *PraDet) FindDependencies(tests []string, oracle *runners.RunnerSet) (De
 	log.Debug("starting dependency detection algorithm")
 
 	it, deps := edgeSelectPraDet(g, edges, 0)
-	for it > 0 {
+	for it >= 0 {
 		schedule := []string{}
 		for _, test := range tests {
 			if _, ok := deps[test]; ok {
