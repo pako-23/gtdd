@@ -51,28 +51,28 @@ func iterationPFAST(ctx context.Context, excludedTest, failedTest int, previousS
 		return
 	}
 
-	if firstFailed < excludedTest {
-		n.Add(1)
+	// if firstFailed < excludedTest {
+	// 	n.Add(1)
 
-		// log.Infof("failed smaller tests, excluded test: %s, tests: %v, failed test: %s", tests[excludedTest], tests, tests[firstFailed])
-		go iterationPFAST(ctx, excludedTest, firstFailed, previousSchedule, ch)
-	} else {
-		// log.Infof("sending over channel: %v, test results  %v -> %v", d, schedule, results)
-		ch <- edgeChannelData{
-			edge: edge{
-				from: schedule[firstFailed],
-				to:   tests[excludedTest],
-			},
-			err: nil,
-		}
-
-		if len(schedule) == 1 {
-			return
-		}
-
-		n.Add(1)
-		go iterationPFAST(ctx, excludedTest, firstFailed, schedule, ch)
+	// 	// log.Infof("failed smaller tests, excluded test: %s, tests: %v, failed test: %s", tests[excludedTest], tests, tests[firstFailed])
+	// 	go iterationPFAST(ctx, excludedTest, firstFailed, previousSchedule, ch)
+	// } else {
+	// log.Infof("sending over channel: %v, test results  %v -> %v", d, schedule, results)
+	ch <- edgeChannelData{
+		edge: edge{
+			from: schedule[firstFailed],
+			to:   tests[excludedTest],
+		},
+		err: nil,
 	}
+
+	if len(schedule) == 1 {
+		return
+	}
+
+	n.Add(1)
+	go iterationPFAST(ctx, excludedTest, firstFailed, schedule, ch)
+	// }
 }
 
 // PFAST implements the pfast strategy to detect dependencies between

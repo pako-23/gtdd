@@ -10,35 +10,35 @@ import (
 
 type PraDet struct{}
 
-func edgeSelectPraDet(g DependencyGraph, edges []edge, it *int) map[string]struct{} {
+func edgeSelectPraDet(g DependencyGraph, edges []edge, it int) (int, map[string]struct{}) {
 	triedEdges := 1
-	g.InvertDependency(edges[*it].from, edges[*it].to)
+	g.InvertDependency(edges[it].from, edges[it].to)
 	// log.Infof("invert edge %d/%d: %s -> %s", *it+1, len(edges), edges[*it].from, edges[*it].to)
 
-	deps := g.GetDependencies(edges[*it].to)
+	deps := g.GetDependencies(edges[it].to)
 
-	_, cycle := deps[edges[*it].to]
+	_, cycle := deps[edges[it].to]
 
 	for cycle {
 		// log.Infof("cycle in edge %d/%d: %s -> %s", *it+1, len(edges), edges[*it].from, edges[*it].to)
-		g.InvertDependency(edges[*it].to, edges[*it].from)
+		g.InvertDependency(edges[it].to, edges[it].from)
 		if triedEdges == len(edges) {
-			return nil
+			return -1, nil
 		}
 
-		*it += 1
-		if *it == len(edges) {
-			*it = 0
+		it += 1
+		if it == len(edges) {
+			it = 0
 		}
 		triedEdges += 1
 
 		// log.Infof("invert edge %d/%d: %s -> %s", *it+1, len(edges), edges[*it].from, edges[*it].to)
-		g.InvertDependency(edges[*it].from, edges[*it].to)
-		deps = g.GetDependencies(edges[*it].to)
-		_, cycle = deps[edges[*it].to]
+		g.InvertDependency(edges[it].from, edges[it].to)
+		deps = g.GetDependencies(edges[it].to)
+		_, cycle = deps[edges[it].to]
 	}
 
-	return deps
+	return it, deps
 }
 
 func (_ *PraDet) FindDependencies(tests []string, oracle *runners.RunnerSet) (DependencyGraph, error) {
@@ -51,15 +51,10 @@ func (_ *PraDet) FindDependencies(tests []string, oracle *runners.RunnerSet) (De
 			g.AddDependency(tests[j], tests[j-i])
 		}
 	}
-
 	log.Debug("starting dependency detection algorithm")
-	it := 0
-	for len(edges) > 0 {
-		deps := edgeSelectPraDet(g, edges, &it)
-		if it == -1 {
-			break
-		}
 
+	it, deps := edgeSelectPraDet(g, edges, 0)
+	for it > 0 {
 		schedule := []string{}
 		for _, test := range tests {
 			if _, ok := deps[test]; ok {
@@ -82,18 +77,45 @@ func (_ *PraDet) FindDependencies(tests []string, oracle *runners.RunnerSet) (De
 
 		g.RemoveDependency(edges[it].to, edges[it].from)
 
-		if FindFailed(results) != -1 {
-			// log.Infof("keeping edge %d/%d: %s -> %s", it+1, len(edges), edges[it].from, edges[it].to)
-			g.AddDependency(edges[it].from, edges[it].to)
+		for i, test := range schedule {
+			if test == edges[it].from {
+				if !results[i] {
+					g.AddDependency(edges[it].from, edges[it].to)
+				}
+				edges = append(edges[:it], edges[it+1:]...)
+				break
+			} else if !results[i] {
+				g.AddDependency(edges[it].from, edges[it].to)
+				break
+			}
 		}
+
+		// isManifest := false
+		// for i, test := range schedule {
+		// 	if test == edges[it].from && !results[i] {
+		// 		isManifest = results[i]
+
+		// 		// g.AddDependency(edges[it].from, edges[it].to)
+		// 		// edges = append(edges[:it], edges[it+1:]...)
+		// 		break
+		// 	}
+		// }
+
+		// if isManifest
+
+		// if FindFailed(results) != -1 {
+		// log.Infof("keeping edge %d/%d: %s -> %s", it+1, len(edges), edges[it].from, edges[it].to)
+		// }
 		// else {
 		// log.Infof("removing edge %d/%d: %s -> %s", it+1, len(edges), edges[it].from, edges[it].to)
 		// }
 
-		edges = append(edges[:it], edges[it+1:]...)
+		// edges = append(edges[:it], edges[it+1:]...)
 		if it == len(edges) {
 			it = 0
 		}
+
+		it, deps = edgeSelectPraDet(g, edges, 0)
 	}
 
 	log.Debug("finished dependency detection algorithm")

@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"sort"
 
 	"github.com/pako-23/gtdd/runners"
 	log "github.com/sirupsen/logrus"
@@ -187,15 +188,36 @@ func (d DependencyGraph) ToDOT(w io.Writer) {
 	w.Write([]byte("    newrank = \"true\"\n"))
 	w.Write([]byte("    subgraph \"root\" {\n"))
 
+	tests := []string{}
+
 	for test := range d {
+		tests = append(tests, test)
+	}
+	sort.Strings(tests)
+
+	for _, test := range tests {
 		w.Write([]byte(fmt.Sprintf("        \"%s\"\n", test)))
 	}
 
-	for test, dependencies := range d {
-		for dependency := range dependencies {
+	for _, test := range tests {
+		dependencies := []string{}
+
+		for dependency := range d[test] {
+			dependencies = append(dependencies, dependency)
+		}
+		sort.Strings(dependencies)
+
+		for _, dependency := range dependencies {
 			w.Write([]byte(fmt.Sprintf("        \"%s\" -> \"%s\"\n", test, dependency)))
 		}
 	}
+
+	// for test, dependencies := range d {
+
+	// 	for dependency := range dependencies {
+	// 		w.Write([]byte(fmt.Sprintf("        \"%s\" -> \"%s\"\n", test, dependency)))
+	// 	}
+	// }
 	w.Write([]byte("    }\n"))
 	w.Write([]byte("}\n"))
 }
