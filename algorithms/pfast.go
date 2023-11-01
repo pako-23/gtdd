@@ -26,6 +26,7 @@ func iterationPFAST(ctx context.Context, excludedTest, failedTest int, previousS
 		n       = ctx.Value("wait-group").(*sync.WaitGroup)
 		runners = ctx.Value("runners").(*runners.RunnerSet)
 		tests   = ctx.Value("tests").([]string)
+		// flexMap = ctx.Value("flex-map").(map[string]int)
 	)
 
 	defer n.Done()
@@ -46,33 +47,40 @@ func iterationPFAST(ctx context.Context, excludedTest, failedTest int, previousS
 	}
 	log.Debugf("run tests %v -> %v", schedule, results)
 
-	firstFailed := FindFailed(results)
-	if firstFailed == -1 {
-		return
-	}
+	// firstFailed := FindFailed(results)
+	// if firstFailed == -1 {
+	// 	return
+	// }
 
-	// if firstFailed < excludedTest {
+	// if firstFailed < excludedTest { from > to
 	// 	n.Add(1)
 
 	// 	// log.Infof("failed smaller tests, excluded test: %s, tests: %v, failed test: %s", tests[excludedTest], tests, tests[firstFailed])
 	// 	go iterationPFAST(ctx, excludedTest, firstFailed, previousSchedule, ch)
 	// } else {
 	// log.Infof("sending over channel: %v, test results  %v -> %v", d, schedule, results)
-	ch <- edgeChannelData{
-		edge: edge{
-			from: schedule[firstFailed],
-			to:   tests[excludedTest],
-		},
-		err: nil,
-	}
-
-	if len(schedule) == 1 {
+	if firstFailed := FindFailed(results); firstFailed == -1 {
 		return
-	}
+	} else if firstFailed < excludedTest {
+		// log.Infof("schedule: %v, failed test: %s, excluded test: %s", schedule, schedule[firstFailed], tests[excludedTest])
+		n.Add(1)
+		go iterationPFAST(ctx, excludedTest, failedTest, previousSchedule, ch)
+	} else if firstFailed != -1 {
+		ch <- edgeChannelData{
+			edge: edge{
+				from: schedule[firstFailed],
+				to:   tests[excludedTest],
+			},
+			err: nil,
+		}
 
-	n.Add(1)
-	go iterationPFAST(ctx, excludedTest, firstFailed, schedule, ch)
-	// }
+		if len(schedule) == 1 {
+			return
+		}
+
+		n.Add(1)
+		go iterationPFAST(ctx, excludedTest, firstFailed, schedule, ch)
+	}
 }
 
 // PFAST implements the pfast strategy to detect dependencies between
@@ -81,6 +89,12 @@ func (_ *PFAST) FindDependencies(tests []string, r *runners.RunnerSet) (Dependen
 	ch := make(chan edgeChannelData)
 	n := sync.WaitGroup{}
 	g := NewDependencyGraph(tests)
+
+	// flexMap := map[string]int{}
+
+	// for i, test := range tests {
+	// 	flexMap[test] = i
+	// }
 
 	log.Debug("starting dependency detection algorithm")
 
@@ -112,8 +126,7 @@ func (_ *PFAST) FindDependencies(tests []string, r *runners.RunnerSet) (Dependen
 			return nil, result.err
 		}
 
-		// log.Infof("adding edge: %s -> %s", result.from, result.to)
-
+		// log.Infof("adding edge: %d -> %d", flexMap[result.from], flexMap[result.to])
 		g.AddDependency(result.from, result.to)
 	}
 
