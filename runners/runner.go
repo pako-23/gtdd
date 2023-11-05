@@ -92,8 +92,8 @@ func NewRunner(config *RunnerConfig) (*Runner, error) {
 func (r *Runner) translateEnv(variables []string) []string {
 	newEnv := make([]string, len(variables))
 
-	hosts := make([]string, 0, len(r.appDefinition.Services)+len(r.driver))
-	for k := range r.appDefinition.Services {
+	hosts := make([]string, 0, len(*r.appDefinition)+len(r.driver))
+	for k := range *r.appDefinition {
 		hosts = append(hosts, k)
 	}
 	for k := range r.driver {

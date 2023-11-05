@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/pako-23/gtdd/compose"
 	"github.com/pako-23/gtdd/testsuite"
@@ -20,10 +21,7 @@ func newBuildCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := args[0]
 
-			app, err := compose.NewApp(&compose.AppConfig{
-				Path:        path,
-				ComposeFile: "docker-compose.yml",
-			})
+			app, err := compose.NewApp(filepath.Join(path, "docker-compose.yml"))
 			if err != nil {
 				return err
 			}

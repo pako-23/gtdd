@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 
+	cgo "github.com/compose-spec/compose-go/types"
+
 	"github.com/docker/docker/client"
 	"github.com/pako-23/gtdd/compose"
 	log "github.com/sirupsen/logrus"
@@ -33,9 +35,9 @@ func (j *JavaTestSuite) ListTests() ([]string, error) {
 	defer cli.Close()
 	ctx := context.Background()
 
-	app := compose.App{Services: map[string]*compose.Service{
-		"testsuite": {Cmd: []string{"--list-tests"}, Image: j.Image},
-	}}
+	app := compose.App{
+		"testsuite": {Command: []string{"--list-tests"}, Image: j.Image},
+	}
 	instance, err := app.Start(&compose.StartConfig{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to start Java test suite container: %w", err)
@@ -66,13 +68,18 @@ func (j *JavaTestSuite) Run(config *RunConfig) ([]bool, error) {
 	defer cli.Close()
 	ctx := context.Background()
 
-	suite := compose.App{Services: map[string]*compose.Service{
+	env := cgo.MappingWithEquals{}
+	for _, variable := range config.Env {
+		env[variable] = nil
+	}
+
+	suite := compose.App{
 		"testsuite": {
-			Cmd:   config.Tests,
-			Image: j.Image,
-			Env:   config.Env,
+			Command:     config.Tests,
+			Image:       j.Image,
+			Environment: env,
 		},
-	}}
+	}
 	instance, err := suite.Start(config.StartConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error in starting java test suite container: %w", err)

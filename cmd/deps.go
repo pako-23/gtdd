@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"os"
-	"strings"
+	"path/filepath"
 
 	"github.com/pako-23/gtdd/algorithms"
 	"github.com/pako-23/gtdd/compose"
@@ -18,7 +18,7 @@ func newDepsCmd() *cobra.Command {
 		strategy       string
 		outputFileName string
 		testSuiteEnv   []string
-		driver         []string
+		driverConfig   string
 	)
 
 	depsCommand := &cobra.Command{
@@ -37,7 +37,7 @@ built.`,
 				return err
 			}
 
-			runners, tests, err := setupRunEnv(path, driver, testSuiteEnv, runnerCount)
+			runners, tests, err := setupRunEnv(path, driverConfig, testSuiteEnv, runnerCount)
 			if err != nil {
 				return err
 			}
@@ -70,7 +70,7 @@ built.`,
 	depsCommand.Flags().UintVarP(&runnerCount, "runners", "r", runners.DefaultSetSize, "The number of concurrent runners")
 	depsCommand.Flags().StringVarP(&outputFileName, "output", "o", "graph.json", "The file used to output the resulting dependency graph")
 	depsCommand.Flags().StringArrayVarP(&testSuiteEnv, "var", "v", []string{}, "An environment variable to pass to the test suite container")
-	depsCommand.Flags().StringArrayVarP(&driver, "driver", "d", []string{}, "The driver image in the form <name>=<image>")
+	depsCommand.Flags().StringVarP(&driverConfig, "driver-config", "d", "", "The path to a Docker Compose file configuring the driver")
 
 	return depsCommand
 }
@@ -78,16 +78,15 @@ built.`,
 // setupRunEnv is a utility function to setup the resources needed to run
 // the test suite. It returns the runners to run the test suite and the list
 // of tests into the test suite in their original order.
-func setupRunEnv(path string, driver, testSuiteEnv []string, runnerCount uint) (*runners.RunnerSet, []string, error) {
+func setupRunEnv(path, driverConfig string, testSuiteEnv []string, runnerCount uint) (*runners.RunnerSet, []string, error) {
+	var driver compose.App
+
 	suite, err := testsuite.FactoryTestSuite("java")
 	if err != nil {
 		return nil, nil, err
 	}
 
-	app, err := compose.NewApp(&compose.AppConfig{
-		Path:        path,
-		ComposeFile: "docker-compose.yml",
-	})
+	app, err := compose.NewApp(filepath.Join(path, "docker-compose.yml"))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -98,16 +97,16 @@ func setupRunEnv(path string, driver, testSuiteEnv []string, runnerCount uint) (
 	}
 	log.Debugf("test suite contains tests: %v", tests)
 
-	services := map[string]*compose.Service{}
-
-	for _, service := range driver {
-		name, image, _ := strings.Cut(service, "=")
-		services[name] = &compose.Service{Image: image}
+	if driverConfig != "" {
+		driver, err = compose.NewApp(driverConfig)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	runners, err := runners.NewRunnerSet(&runners.RunnerSetConfig{
 		App:          &app,
-		Driver:       &compose.App{Services: services},
+		Driver:       &driver,
 		Runners:      runnerCount,
 		TestSuite:    suite,
 		TestSuiteEnv: testSuiteEnv,

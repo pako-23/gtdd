@@ -9,33 +9,17 @@ import (
 	"io"
 	"time"
 
+	cgo "github.com/compose-spec/compose-go/types"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/strslice"
 	"github.com/docker/docker/client"
 	log "github.com/sirupsen/logrus"
 )
 
-type HealthCheck struct {
-	Test        []string      `yaml:"test"`
-	Interval    time.Duration `yaml:"interval"`
-	Timeout     time.Duration `yaml:"timeout"`
-	Retries     int           `yaml:"retries"`
-	StartPeriod time.Duration `yaml:"start_period"`
-}
-
 // A Service represents a container as it is defined inside a Docker Compose
 // definition file.
-type Service struct {
-	// The command to run inside the Docker container.
-	Cmd []string `yaml:"command"`
-	// Overrides the default ENTRYPOINT for the image needed to run the service.
-	Entrypoint []string `yaml:"entrypoint"`
-	// Sets the environment variables inside the container tu run the service.
-	Env []string `yaml:"env"`
-	// The Docker image used to create the container to run the service.
-	Image       string       `yaml:"image"`
-	HealthCheck *HealthCheck `yaml:"healthcheck"`
-}
+type Service cgo.ServiceConfig
 
 type serviceInstance struct {
 	ServiceName string
@@ -43,33 +27,76 @@ type serviceInstance struct {
 	Error       error
 }
 
+func toDockerEnv(environment cgo.MappingWithEquals) []string {
+	var env []string
+	for k, v := range environment {
+		if v == nil {
+			env = append(env, k)
+		} else {
+			env = append(env, fmt.Sprintf("%s=%s", k, *v))
+		}
+	}
+	return env
+}
+
+func toDockerHealthCheck(check *cgo.HealthCheckConfig) *container.HealthConfig {
+	if check == nil {
+		return nil
+	}
+	var (
+		interval time.Duration
+		timeout  time.Duration
+		period   time.Duration
+		retries  int
+	)
+	if check.Interval != nil {
+		interval = time.Duration(*check.Interval)
+	}
+	if check.Timeout != nil {
+		timeout = time.Duration(*check.Timeout)
+	}
+	if check.StartPeriod != nil {
+		period = time.Duration(*check.StartPeriod)
+	}
+	if check.Retries != nil {
+		retries = int(*check.Retries)
+	}
+	test := check.Test
+	if check.Disable {
+		test = []string{"NONE"}
+	}
+	return &container.HealthConfig{
+		Test:        test,
+		Interval:    interval,
+		Timeout:     timeout,
+		StartPeriod: period,
+		Retries:     retries,
+	}
+}
+
 // create creates the Docker container needed to run the Service. The image
 // should already be pulled on the host. If there is any error in creating the
 // Docker container, it is returned.
 func (s *Service) create(ctx context.Context, name string) (string, error) {
-	cli := ctx.Value("client").(*client.Client)
-
-	config := container.Config{
-		Cmd:        s.Cmd,
-		Entrypoint: s.Entrypoint,
-		Env:        s.Env,
-		Image:      s.Image,
-	}
-	if s.HealthCheck != nil {
-		config.Healthcheck = &container.HealthConfig{
-			Test:        s.HealthCheck.Test,
-			Interval:    s.HealthCheck.Interval,
-			Timeout:     s.HealthCheck.Timeout,
-			StartPeriod: s.HealthCheck.StartPeriod,
-			Retries:     s.HealthCheck.Retries,
+	var (
+		cli             *client.Client    = ctx.Value("client").(*client.Client)
+		containerConfig *container.Config = &container.Config{
+			Cmd:         strslice.StrSlice(s.Command),
+			Entrypoint:  strslice.StrSlice(s.Entrypoint),
+			Env:         toDockerEnv(s.Environment),
+			Image:       s.Image,
+			Healthcheck: toDockerHealthCheck(s.HealthCheck),
 		}
-	}
+		hostConfig *container.HostConfig = &container.HostConfig{
+			ShmSize: int64(s.ShmSize),
+		}
+	)
 
-	res, err := cli.ContainerCreate(ctx, &config, nil, nil, nil, name)
+	res, err := cli.ContainerCreate(ctx, containerConfig, hostConfig, nil, nil, name)
 	if err != nil {
-		return "", fmt.Errorf("container creation with config %v failed: %w", config, err)
+		return "", fmt.Errorf("container creation with config %v failed: %w", containerConfig, err)
 	}
-	log.Debugf("created container %s with config: %v", res.ID, config)
+	log.Debugf("created container %s with config: %v", res.ID, containerConfig)
 
 	return res.ID, nil
 }
@@ -98,7 +125,7 @@ func (s *Service) run(ctx context.Context, ch chan<- serviceInstance, n *sync.Wa
 
 	if s.HealthCheck != nil {
 		log.Debugf("sleeping for %v", s.HealthCheck.StartPeriod)
-		time.Sleep(s.HealthCheck.StartPeriod)
+		time.Sleep(time.Duration(*s.HealthCheck.StartPeriod))
 	}
 
 	for {
@@ -114,7 +141,7 @@ func (s *Service) run(ctx context.Context, ch chan<- serviceInstance, n *sync.Wa
 
 		if s.HealthCheck != nil {
 			log.Debugf("sleeping for %v", s.HealthCheck.Interval)
-			time.Sleep(s.HealthCheck.Interval)
+			time.Sleep(time.Duration(*s.HealthCheck.Interval))
 		}
 	}
 

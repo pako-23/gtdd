@@ -10,34 +10,20 @@ package compose
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sync"
+
+	cgo "github.com/compose-spec/compose-go/cli"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
-	"gopkg.in/yaml.v3"
 )
 
 // An App represents a collection of services with their names as they
 // are defined inside a Docker Compose definition file.
-type App struct {
-	// The service with their names as they are defined inside the Docker
-	// Compose definition file.
-	Services map[string]*Service `yaml:"services"`
-}
-
-// An AppConfig represents the configuration needed to load an App from a
-// Docker Compose definition file.
-type AppConfig struct {
-	// The path to where the Docker Compose definition file is located.
-	Path string
-	// The name of the file containing of the Docker Compose definition file.
-	ComposeFile string
-}
+type App map[string]*Service
 
 // The StartConfig represents the configurations to apply to an App when
 // creating an instance of it.
@@ -54,21 +40,20 @@ type StartConfig struct {
 // NewApp load an App from a Docker Compose definition file.
 // If there is any error in reading or parsing the definition file,
 // it is returned.
-func NewApp(config *AppConfig) (App, error) {
-	var (
-		app            App
-		definitionFile = filepath.Join(config.Path, config.ComposeFile)
-	)
+func NewApp(definitionFile string) (App, error) {
+	var app App = App{}
 
-	data, err := os.ReadFile(definitionFile)
+	project, err := cgo.ProjectFromOptions(&cgo.ProjectOptions{
+		ConfigPaths: []string{definitionFile},
+	})
 	if err != nil {
-		return App{}, fmt.Errorf("failed to read app definition file: %w", err)
-	}
-
-	if err := yaml.Unmarshal(data, &app); err != nil {
 		return App{}, fmt.Errorf("failed to load app definition file: %w", err)
 	}
 
+	for _, name := range project.ServiceNames() {
+		service, _ := project.GetService(name)
+		app[name] = (*Service)(&service)
+	}
 	log.Infof("successfully read Docker Compose file from %s", definitionFile)
 
 	return app, nil
@@ -87,7 +72,7 @@ func (a *App) Pull() error {
 	log.Debugf("starting pulling Docker images for app")
 
 	ctx := context.WithValue(context.Background(), "client", cli)
-	for _, s := range a.Services {
+	for _, s := range *a {
 		func(s *Service) {
 			g.Go(func() error {
 				return s.pull(ctx)
@@ -126,7 +111,7 @@ func (a *App) Start(config *StartConfig) (AppInstance, error) {
 		"start-config",
 		config,
 	)
-	for name, service := range a.Services {
+	for name, service := range *a {
 		n.Add(1)
 
 		go service.run(context.WithValue(ctx, "service-name", name), ch, &n)

@@ -20,7 +20,7 @@ func newRunCmd() *cobra.Command {
 	var (
 		runnerCount   uint
 		testSuiteEnv  []string
-		driver        []string
+		driverConfig  string
 		inputFileName string
 	)
 
@@ -34,7 +34,7 @@ will run the tests in the original order.`,
 		PreRun: configureLogging,
 		RunE: func(cmd *cobra.Command, args []string) error {
 
-			runners, tests, err := setupRunEnv(args[0], driver, testSuiteEnv, runnerCount)
+			runners, tests, err := setupRunEnv(args[0], driverConfig, testSuiteEnv, runnerCount)
 			if err != nil {
 				return err
 			}
@@ -81,7 +81,7 @@ will run the tests in the original order.`,
 	runCommand.Flags().UintVarP(&runnerCount, "runners", "r", runners.DefaultSetSize, "The number of concurrent runners")
 	runCommand.Flags().StringVarP(&inputFileName, "input", "i", "", "")
 	runCommand.Flags().StringArrayVarP(&testSuiteEnv, "var", "v", []string{}, "An environment variable to pass to the test suite container")
-	runCommand.Flags().StringArrayVarP(&driver, "driver", "d", []string{}, "The driver image in the form <name>=<image>")
+	runCommand.Flags().StringVarP(&driverConfig, "driver-config", "d", "", "The path to a Docker Compose file configuring the driver")
 
 	return runCommand
 }

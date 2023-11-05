@@ -22,7 +22,7 @@ func newSchedulesCmd() *cobra.Command {
 		Long:   `.`,
 		PreRun: configureLogging,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runners, tests, err := setupRunEnv(args[0], []string{}, []string{}, 1)
+			runners, tests, err := setupRunEnv(args[0], "", []string{}, 1)
 			if err != nil {
 				return err
 			}
