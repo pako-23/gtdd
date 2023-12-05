@@ -14,11 +14,16 @@ Vagrant.configure('2') do |config|
             "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | \
         sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
         sudo apt update
-        sudo apt-get install -y  docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+        sudo apt-get install -y  docker-ce docker-ce-cli containerd.io cloud-utils
         sudo usermod -aG docker vagrant
+        sudo curl -SL https://github.com/docker/compose/releases/download/v2.23.3/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose
+        sudo chmod +x /usr/local/bin/docker-compose
+        sudo growpart /dev/vda 1
+        sudo resize2fs /dev/vda1
     SHELL
 
     config.vm.provider 'libvirt' do |v|
+        v.machine_virtual_size = 50
         v.memory = VM_MEMORY
         v.cpus = VM_CPUS
     end

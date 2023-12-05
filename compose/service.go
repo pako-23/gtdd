@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -78,13 +79,18 @@ func toDockerHealthCheck(check *cgo.HealthCheckConfig) *container.HealthConfig {
 // should already be pulled on the host. If there is any error in creating the
 // Docker container, it is returned.
 func (s *Service) create(ctx context.Context, name string) (string, error) {
+	imageName := s.Image
+	if len(imageName) == 0 {
+		s.Build.Context = strings.Join([]string{filepath.Base(s.Build.Context), name}, "-")
+	}
+
 	var (
 		cli             *client.Client    = ctx.Value("client").(*client.Client)
 		containerConfig *container.Config = &container.Config{
 			Cmd:         strslice.StrSlice(s.Command),
 			Entrypoint:  strslice.StrSlice(s.Entrypoint),
 			Env:         toDockerEnv(s.Environment),
-			Image:       s.Image,
+			Image:       imageName,
 			Healthcheck: toDockerHealthCheck(s.HealthCheck),
 		}
 		hostConfig *container.HostConfig = &container.HostConfig{

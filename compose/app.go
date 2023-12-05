@@ -10,6 +10,8 @@ package compose
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	cgo "github.com/compose-spec/compose-go/cli"
@@ -59,9 +61,9 @@ func NewApp(definitionFile string) (App, error) {
 	return app, nil
 }
 
-// Pull downloads all the Docker images needed to run some App.
+// Setup downloads all the Docker images needed to run some App.
 // If there is any error in downloading the images, it is returned.
-func (a *App) Pull() error {
+func (a *App) Setup() error {
 	var g errgroup.Group
 
 	cli, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())
@@ -72,18 +74,29 @@ func (a *App) Pull() error {
 	log.Debugf("starting pulling Docker images for app")
 
 	ctx := context.WithValue(context.Background(), "client", cli)
-	for _, s := range *a {
-		func(s *Service) {
-			g.Go(func() error {
-				return s.pull(ctx)
-			})
-		}(s)
+	for name, service := range *a {
+		func(name string, service *Service) {
+			if len(service.Image) != 0 {
+				g.Go(func() error {
+					return service.pull(ctx)
+				})
+			} else {
+				g.Go(func() error {
+					basename := filepath.Base(service.Build.Context)
+					imageName := strings.Join([]string{basename, name}, "-")
+					return BuildDockerImage(
+						imageName,
+						service.Build.Context,
+						service.Build.Dockerfile,
+					)
+				})
+			}
+		}(name, service)
 	}
 
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("failed to pull images for app: %w", err)
 	}
-
 	log.Infof("successfully pulled Docker images for app")
 
 	return nil

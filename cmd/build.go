@@ -12,6 +12,8 @@ import (
 )
 
 func newBuildCmd() *cobra.Command {
+	var testSuiteType string
+
 	buildCommand := &cobra.Command{
 		Use:    "build [flags] [path to testsuite]",
 		Short:  "Builds the artifacts needed to run a test suite",
@@ -26,14 +28,14 @@ func newBuildCmd() *cobra.Command {
 				return err
 			}
 
-			suite, err := testsuite.FactoryTestSuite("java")
+			suite, err := testsuite.FactoryTestSuite(path, testSuiteType)
 			if err != nil {
 				return err
 			}
 
 			var waitgroup errgroup.Group
 
-			waitgroup.Go(app.Pull)
+			waitgroup.Go(app.Setup)
 			waitgroup.Go(func() error {
 				if err := suite.Build(path); err != nil {
 					return fmt.Errorf("test suite artifacts build failed: %w", err)
@@ -50,6 +52,8 @@ func newBuildCmd() *cobra.Command {
 			return nil
 		},
 	}
+
+	buildCommand.Flags().StringVarP(&testSuiteType, "suite-type", "t", "", "The test suite type")
 
 	return buildCommand
 }

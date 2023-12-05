@@ -14,11 +14,12 @@ import (
 
 func newDepsCmd() *cobra.Command {
 	var (
+		driverConfig   string
+		outputFileName string
 		runnerCount    uint
 		strategy       string
-		outputFileName string
 		testSuiteEnv   []string
-		driverConfig   string
+		testSuiteType  string
 	)
 
 	depsCommand := &cobra.Command{
@@ -37,7 +38,7 @@ built.`,
 				return err
 			}
 
-			runners, tests, err := setupRunEnv(path, driverConfig, testSuiteEnv, runnerCount)
+			runners, tests, err := setupRunEnv(path, driverConfig, testSuiteType, testSuiteEnv, runnerCount)
 			if err != nil {
 				return err
 			}
@@ -66,11 +67,12 @@ built.`,
 		},
 	}
 
-	depsCommand.Flags().StringVarP(&strategy, "strategy", "s", "pfast", "The strategy to detect dependencies between tests")
-	depsCommand.Flags().UintVarP(&runnerCount, "runners", "r", runners.DefaultSetSize, "The number of concurrent runners")
-	depsCommand.Flags().StringVarP(&outputFileName, "output", "o", "graph.json", "The file used to output the resulting dependency graph")
 	depsCommand.Flags().StringArrayVarP(&testSuiteEnv, "var", "v", []string{}, "An environment variable to pass to the test suite container")
 	depsCommand.Flags().StringVarP(&driverConfig, "driver-config", "d", "", "The path to a Docker Compose file configuring the driver")
+	depsCommand.Flags().StringVarP(&outputFileName, "output", "o", "graph.json", "The file used to output the resulting dependency graph")
+	depsCommand.Flags().StringVarP(&strategy, "strategy", "s", "pfast", "The strategy to detect dependencies between tests")
+	depsCommand.Flags().StringVarP(&testSuiteType, "suite-type", "t", "", "The test suite type")
+	depsCommand.Flags().UintVarP(&runnerCount, "runners", "r", runners.DefaultSetSize, "The number of concurrent runners")
 
 	return depsCommand
 }
@@ -78,10 +80,10 @@ built.`,
 // setupRunEnv is a utility function to setup the resources needed to run
 // the test suite. It returns the runners to run the test suite and the list
 // of tests into the test suite in their original order.
-func setupRunEnv(path, driverConfig string, testSuiteEnv []string, runnerCount uint) (*runners.RunnerSet, []string, error) {
+func setupRunEnv(path, driverConfig, suiteType string, testSuiteEnv []string, runnerCount uint) (*runners.RunnerSet, []string, error) {
 	var driver compose.App
 
-	suite, err := testsuite.FactoryTestSuite("java")
+	suite, err := testsuite.FactoryTestSuite(path, suiteType)
 	if err != nil {
 		return nil, nil, err
 	}

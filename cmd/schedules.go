@@ -11,8 +11,9 @@ import (
 
 func newSchedulesCmd() *cobra.Command {
 	var (
-		outputFileName string
 		inputFileName  string
+		outputFileName string
+		testSuiteType  string
 	)
 
 	schedulesCommand := &cobra.Command{
@@ -22,7 +23,7 @@ func newSchedulesCmd() *cobra.Command {
 		Long:   `.`,
 		PreRun: configureLogging,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runners, tests, err := setupRunEnv(args[0], "", []string{}, 1)
+			runners, tests, err := setupRunEnv(args[0], "", testSuiteType, []string{}, 1)
 			if err != nil {
 				return err
 			}
@@ -59,8 +60,9 @@ func newSchedulesCmd() *cobra.Command {
 		},
 	}
 
-	schedulesCommand.Flags().StringVarP(&outputFileName, "output", "o", "", "The file used to output the schedules")
 	schedulesCommand.Flags().StringVarP(&inputFileName, "input", "i", "", "")
+	schedulesCommand.Flags().StringVarP(&outputFileName, "output", "o", "", "The file used to output the schedules")
+	schedulesCommand.Flags().StringVarP(&testSuiteType, "suite-type", "t", "", "The test suite type")
 
 	return schedulesCommand
 }

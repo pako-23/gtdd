@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/pako-23/gtdd/algorithms"
 	"github.com/pako-23/gtdd/runners"
@@ -12,16 +13,18 @@ import (
 )
 
 type runResults struct {
-	schedule []string
 	results  []bool
+	schedule []string
+	time     time.Duration
 }
 
 func newRunCmd() *cobra.Command {
 	var (
-		runnerCount   uint
-		testSuiteEnv  []string
 		driverConfig  string
 		inputFileName string
+		runnerCount   uint
+		testSuiteEnv  []string
+		testSuiteType string
 	)
 
 	runCommand := &cobra.Command{
@@ -34,7 +37,7 @@ will run the tests in the original order.`,
 		PreRun: configureLogging,
 		RunE: func(cmd *cobra.Command, args []string) error {
 
-			runners, tests, err := setupRunEnv(args[0], driverConfig, testSuiteEnv, runnerCount)
+			runners, tests, err := setupRunEnv(args[0], driverConfig, testSuiteType, testSuiteEnv, runnerCount)
 			if err != nil {
 				return err
 			}
@@ -55,7 +58,10 @@ will run the tests in the original order.`,
 				go runSchedule(schedule, errCh, resultsCh, runners)
 			}
 
-			var errorMessages []string = []string{}
+			var (
+				errorMessages []string       = []string{}
+				minDuration   *time.Duration = nil
+			)
 
 			for i := 0; i < len(schedules); i++ {
 				select {
@@ -68,20 +74,28 @@ will run the tests in the original order.`,
 					if failed != -1 {
 						errorMessages = append(errorMessages, fmt.Sprintf("test %v failed in schedule %v", result.schedule[failed], result.schedule))
 					}
+
+					log.Infof("run schedule in %v", result.time)
+					if minDuration == nil || result.time < *minDuration {
+						minDuration = &result.time
+					}
 				}
 			}
 
 			if len(errorMessages) > 0 {
 				return errors.New(strings.Join(errorMessages, "\n"))
 			}
+
+			log.Infof("expected running time %v", *minDuration)
 			return nil
 		},
 	}
 
-	runCommand.Flags().UintVarP(&runnerCount, "runners", "r", runners.DefaultSetSize, "The number of concurrent runners")
-	runCommand.Flags().StringVarP(&inputFileName, "input", "i", "", "")
 	runCommand.Flags().StringArrayVarP(&testSuiteEnv, "var", "v", []string{}, "An environment variable to pass to the test suite container")
 	runCommand.Flags().StringVarP(&driverConfig, "driver-config", "d", "", "The path to a Docker Compose file configuring the driver")
+	runCommand.Flags().StringVarP(&inputFileName, "input", "i", "", "")
+	runCommand.Flags().StringVarP(&testSuiteType, "suite-type", "t", "", "The test suite type")
+	runCommand.Flags().UintVarP(&runnerCount, "runners", "r", runners.DefaultSetSize, "The number of concurrent runners")
 
 	return runCommand
 }
@@ -97,6 +111,7 @@ func runSchedule(schedule []string, errCh chan error, resultsCh chan runResults,
 		return
 	}
 	defer func() { go r.Release(runnerID) }()
+	start := time.Now()
 
 	out, err := r.Get(runnerID).Run(schedule)
 	if err != nil {
@@ -105,5 +120,5 @@ func runSchedule(schedule []string, errCh chan error, resultsCh chan runResults,
 		return
 	}
 
-	resultsCh <- runResults{schedule: schedule, results: out}
+	resultsCh <- runResults{schedule: schedule, results: out, time: time.Now().Sub(start)}
 }
