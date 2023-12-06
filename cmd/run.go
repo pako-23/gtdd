@@ -59,8 +59,8 @@ will run the tests in the original order.`,
 			}
 
 			var (
-				errorMessages []string       = []string{}
-				minDuration   *time.Duration = nil
+				errorMessages    []string = []string{}
+				expectedDuration time.Duration
 			)
 
 			for i := 0; i < len(schedules); i++ {
@@ -76,8 +76,8 @@ will run the tests in the original order.`,
 					}
 
 					log.Infof("run schedule in %v", result.time)
-					if minDuration == nil || result.time < *minDuration {
-						minDuration = &result.time
+					if expectedDuration < result.time {
+						expectedDuration = result.time
 					}
 				}
 			}
@@ -86,7 +86,7 @@ will run the tests in the original order.`,
 				return errors.New(strings.Join(errorMessages, "\n"))
 			}
 
-			log.Infof("expected running time %v", *minDuration)
+			log.Infof("expected running time %v", expectedDuration)
 			return nil
 		},
 	}
