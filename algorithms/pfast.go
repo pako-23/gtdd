@@ -233,10 +233,7 @@ func recoveryPFAST(ctx context.Context, g *DependencyGraph) error {
 		return err
 	}
 
-	log.Infof("failing tests %v", notPassingTests)
-
 	passedSchedules := map[int]struct{}{}
-
 	for i, test := range tests {
 		if solvedSchedule(notPassingTests, passedSchedules, test) {
 			continue
@@ -320,7 +317,6 @@ func (_ *PFAST) FindDependencies(tests []string, r *runners.RunnerSet) (Dependen
 		g.AddDependency(result.from, result.to)
 	}
 
-	log.Info("Start recovery")
 	if err := recoveryPFAST(ctx, &g); err != nil {
 		return nil, err
 	}
