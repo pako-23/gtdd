@@ -5,11 +5,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pako-23/gtdd/algorithms"
 	"github.com/pako-23/gtdd/runners"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/slices"
 )
 
 type runResults struct {
@@ -66,11 +66,9 @@ will run the tests in the original order.`,
 			for i := 0; i < len(schedules); i++ {
 				select {
 				case err := <-errCh:
-					close(errCh)
-					close(resultsCh)
 					return err
 				case result := <-resultsCh:
-					failed := algorithms.FindFailed(result.results)
+					failed := slices.Index(result.results, false)
 					if failed != -1 {
 						errorMessages = append(errorMessages, fmt.Sprintf("test %v failed in schedule %v", result.schedule[failed], result.schedule))
 					}

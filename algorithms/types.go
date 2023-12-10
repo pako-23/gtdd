@@ -212,12 +212,6 @@ func (d DependencyGraph) ToDOT(w io.Writer) {
 		}
 	}
 
-	// for test, dependencies := range d {
-
-	// 	for dependency := range dependencies {
-	// 		w.Write([]byte(fmt.Sprintf("        \"%s\" -> \"%s\"\n", test, dependency)))
-	// 	}
-	// }
 	w.Write([]byte("    }\n"))
 	w.Write([]byte("}\n"))
 }

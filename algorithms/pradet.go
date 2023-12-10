@@ -13,14 +13,12 @@ type PraDet struct{}
 func edgeSelectPraDet(g DependencyGraph, edges []edge, it int) (int, map[string]struct{}) {
 	triedEdges := 1
 	g.InvertDependency(edges[it].from, edges[it].to)
-	// log.Infof("invert edge %d/%d: %s -> %s", *it+1, len(edges), edges[*it].from, edges[*it].to)
 
 	deps := g.GetDependencies(edges[it].to)
 
 	_, cycle := deps[edges[it].to]
 
 	for cycle {
-		// log.Infof("cycle in edge %d/%d: %s -> %s", *it+1, len(edges), edges[*it].from, edges[*it].to)
 		g.InvertDependency(edges[it].to, edges[it].from)
 		if triedEdges == len(edges) {
 			return -1, nil
@@ -32,7 +30,6 @@ func edgeSelectPraDet(g DependencyGraph, edges []edge, it int) (int, map[string]
 		}
 		triedEdges += 1
 
-		// log.Infof("invert edge %d/%d: %s -> %s", *it+1, len(edges), edges[*it].from, edges[*it].to)
 		g.InvertDependency(edges[it].from, edges[it].to)
 		deps = g.GetDependencies(edges[it].to)
 		_, cycle = deps[edges[it].to]
@@ -90,27 +87,6 @@ func (_ *PraDet) FindDependencies(tests []string, oracle *runners.RunnerSet) (De
 			}
 		}
 
-		// isManifest := false
-		// for i, test := range schedule {
-		// 	if test == edges[it].from && !results[i] {
-		// 		isManifest = results[i]
-
-		// 		// g.AddDependency(edges[it].from, edges[it].to)
-		// 		// edges = append(edges[:it], edges[it+1:]...)
-		// 		break
-		// 	}
-		// }
-
-		// if isManifest
-
-		// if FindFailed(results) != -1 {
-		// log.Infof("keeping edge %d/%d: %s -> %s", it+1, len(edges), edges[it].from, edges[it].to)
-		// }
-		// else {
-		// log.Infof("removing edge %d/%d: %s -> %s", it+1, len(edges), edges[it].from, edges[it].to)
-		// }
-
-		// edges = append(edges[:it], edges[it+1:]...)
 		if it == len(edges) {
 			it = 0
 		}
