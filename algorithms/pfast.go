@@ -74,6 +74,8 @@ func findPossibleTargets(tests []string, g *DependencyGraph) map[string]int {
 	targets := map[string]int{}
 	visited := map[string]struct{}{}
 
+	log.Info("Finding targets on tests %v", tests)
+
 	for i := len(tests) - 1; i >= 0; i-- {
 		if _, ok := visited[tests[i]]; ok {
 			continue
@@ -182,8 +184,9 @@ func cleanAddedEdges(ctx context.Context, i int, test string, g *DependencyGraph
 		tests   = ctx.Value("tests").([]string)
 	)
 
-	targets := findPossibleTargets(tests[:i+1], g)
+	targets := findPossibleTargets(tests[:i], g)
 	for target := range targets {
+		log.Infof("recovery add edge %s -> %s", test, target)
 		g.AddDependency(test, target)
 	}
 
@@ -233,8 +236,11 @@ func recoveryPFAST(ctx context.Context, g *DependencyGraph) error {
 		return err
 	}
 
+	log.Infof("failing tests %v", notPassingTests)
+
 	passedSchedules := map[int]struct{}{}
 	for i, test := range tests {
+		log.Infof("recovery working on test %s", test)
 		if solvedSchedule(notPassingTests, passedSchedules, test) {
 			continue
 		}
@@ -251,6 +257,8 @@ func recoveryPFAST(ctx context.Context, g *DependencyGraph) error {
 			}
 		}
 
+		log.Infof("prefix stuff")
+
 		for s := range notPassingTests[test] {
 			if _, ok := passedSchedules[s]; ok {
 				continue
@@ -258,7 +266,7 @@ func recoveryPFAST(ctx context.Context, g *DependencyGraph) error {
 
 			index := slices.Index(schedules[s], test)
 			schedule := prefix
-			schedule = append(schedule, schedules[s][index+1:]...)
+			schedule = append(schedule, schedules[s][index:]...)
 
 			runnerID, err := runners.Reserve()
 			if err != nil {
