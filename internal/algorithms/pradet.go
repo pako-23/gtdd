@@ -5,7 +5,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/pako-23/gtdd/runners"
+	runner "github.com/pako-23/gtdd/internal/runner/compose-runner"
 )
 
 type PraDet struct{}
@@ -38,7 +38,7 @@ func edgeSelectPraDet(g DependencyGraph, edges []edge, it int) (int, map[string]
 	return it, deps
 }
 
-func (_ *PraDet) FindDependencies(tests []string, oracle *runners.RunnerSet) (DependencyGraph, error) {
+func (*PraDet) FindDependencies(tests []string, oracle *runner.RunnerSet) (DetectorArtifact, error) {
 	g := NewDependencyGraph(tests)
 	edges := []edge{}
 

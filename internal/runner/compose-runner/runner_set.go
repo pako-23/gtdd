@@ -1,12 +1,13 @@
-package runners
+package compose_runner
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
 
-	"github.com/pako-23/gtdd/compose"
-	"github.com/pako-23/gtdd/testsuite"
+	"github.com/pako-23/gtdd/internal/docker"
+	"github.com/pako-23/gtdd/internal/testsuite"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 )
@@ -19,9 +20,9 @@ var ErrNoRunner = errors.New("no runner to reserve")
 // RunnerSetConfig represents the configurations needed to create a RunnerSer.
 type RunnerSetConfig struct {
 	// The App to configure on the runners.
-	App *compose.App
+	App *docker.App
 	// The driver used to configure the runners.
-	Driver *compose.App
+	Driver *docker.App
 	// The number of runners to include in the set.
 	Runners uint
 	// The test suite to run into the runner.
@@ -36,6 +37,9 @@ type RunnerSet struct {
 	runners map[string]*Runner
 	// Tokens to reserve a runner.
 	tokens chan string
+
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // NewRunnerSet creates a new set of runner with the provided configuration.
@@ -67,14 +71,15 @@ func NewRunnerSet(config *RunnerSetConfig) (*RunnerSet, error) {
 		}
 		set.runners[runnerName] = runner
 
+		n.Add(1)
 		go func(runnerID string) {
-			n.Add(1)
 			defer n.Done()
 			set.Release(runnerName)
 		}(runnerName)
 	}
 	n.Wait()
 	log.Infof("successfully initialized %d runners", len(set.runners))
+	set.ctx, set.cancel = context.WithCancel(context.Background())
 
 	return &set, nil
 }
@@ -83,16 +88,10 @@ func NewRunnerSet(config *RunnerSetConfig) (*RunnerSet, error) {
 // If there is an error in the process, it is returned.
 func (r *RunnerSet) Delete() error {
 	var waitgroup errgroup.Group
+	r.cancel()
 	for range r.runners {
 		waitgroup.Go(func() error {
-			runnerID, err := r.Reserve()
-			if err == ErrNoRunner {
-				return nil
-			} else if err != nil {
-				return err
-			}
-
-			return r.Get(runnerID).Delete()
+			return r.Get(<-r.tokens).Delete()
 		})
 	}
 
@@ -113,7 +112,12 @@ func (r *RunnerSet) Reserve() (string, error) {
 		return "", ErrNoRunner
 	}
 
-	return <-r.tokens, nil
+	select {
+	case <-r.ctx.Done():
+		return "", ErrNoRunner
+	case token := <-r.tokens:
+		return token, nil
+	}
 }
 
 // Release deletes the reservation for a given runner. It requires the
@@ -124,9 +128,9 @@ func (r *RunnerSet) Release(runnerID string) {
 
 		return
 	} else if err := runner.ResetApplication(); err != nil {
-		log.Errorf("failed to reset application on runner %s: %w", runnerID, err)
+		log.Errorf("failed to reset application on runner %s: %v", runnerID, err)
 		if err = runner.Delete(); err != nil {
-			log.Errorf("failed to delete runner %s: %w", runnerID, err)
+			log.Errorf("failed to delete runner %s: %v", runnerID, err)
 		}
 		delete(r.runners, runnerID)
 

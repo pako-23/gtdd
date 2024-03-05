@@ -5,7 +5,7 @@
 // Load the services defined into a Docker Compose definition file to run them
 // as a set of Docker containers.
 
-package compose
+package docker
 
 import (
 	"context"

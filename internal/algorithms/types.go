@@ -5,11 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"sort"
 
-	"github.com/pako-23/gtdd/runners"
+	runner "github.com/pako-23/gtdd/internal/runner/compose-runner"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -21,8 +20,12 @@ type edge struct {
 	to   string
 }
 
+type DetectorArtifact interface {
+	ToJSON(w io.Writer)
+}
+
 type DependencyDetector interface {
-	FindDependencies([]string, *runners.RunnerSet) (DependencyGraph, error)
+	FindDependencies([]string, *runner.RunnerSet) (DetectorArtifact, error)
 }
 
 // edgeChannelData represents the edge data exchanged on channels when running
@@ -38,6 +41,8 @@ type edgeChannelData struct {
 // tests of a test suite. In the graph, each node is a test of the test suite
 // and each edge represents the dependency relationship between the tests.
 type DependencyGraph map[string]map[string]struct{}
+
+type ParallelSchedules [][]string
 
 // NewDependencyGraph returns a DependencyGraph without any edges from a
 // list of tests.
@@ -60,7 +65,7 @@ func DependencyGraphFromJson(fileName string) (DependencyGraph, error) {
 	}
 	defer file.Close()
 
-	data, err := ioutil.ReadAll(file)
+	data, err := io.ReadAll(file)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read JSON file: %w", err)
 	}
@@ -161,6 +166,7 @@ func (d DependencyGraph) TransitiveReduction() {
 // ToJSON returns a JSON representation of the dependencies relationship
 // between tests of a test suite.
 func (d DependencyGraph) ToJSON(w io.Writer) {
+	d.TransitiveReduction()
 	graph := map[string][]string{}
 
 	for test, dependencies := range d {
@@ -245,12 +251,23 @@ func (d DependencyGraph) GetSchedules(tests []string) [][]string {
 	return schedules
 }
 
+func (p ParallelSchedules) ToJSON(w io.Writer) {
+	data, err := json.MarshalIndent(p, "", "  ")
+	if err != nil {
+		log.Errorf("failed to create json representation of schedules: %v", err)
+	}
+
+	w.Write(data)
+}
+
 func NewDependencyDetector(strategy string) (DependencyDetector, error) {
 	switch strategy {
 	case "pfast":
 		return &PFAST{}, nil
 	case "pradet":
 		return &PraDet{}, nil
+	case "mem-fast":
+		return &MEMFAST{}, nil
 	default:
 		return nil, ErrDependencyDetectorNotExisting
 	}

@@ -10,7 +10,7 @@ import (
 	"errors"
 	"path/filepath"
 
-	"github.com/pako-23/gtdd/compose"
+	"github.com/pako-23/gtdd/internal/docker"
 )
 
 // ErrNotSupportedTestSuiteType represents the error returned when trying to
@@ -27,7 +27,7 @@ type RunConfig struct {
 	// The list of tests to run.
 	Tests []string
 	// The configuration to apply to the container running the tests.
-	StartConfig *compose.StartConfig
+	StartConfig *docker.StartConfig
 }
 
 // TestSuite defines the operations that should be supported by a generic

@@ -1,4 +1,4 @@
-package compose
+package docker
 
 import (
 	"path/filepath"

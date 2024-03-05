@@ -9,7 +9,7 @@ import (
 	cgo "github.com/compose-spec/compose-go/types"
 
 	"github.com/docker/docker/client"
-	"github.com/pako-23/gtdd/compose"
+	"github.com/pako-23/gtdd/internal/docker"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -22,7 +22,7 @@ type JavaSeleniumTestSuite struct {
 // Build produces the artifacts needed to run the Java test suite. It will
 // create a Docker image on the host. If there is any error it is returned.
 func (j *JavaSeleniumTestSuite) Build(path string) error {
-	return compose.BuildDockerImage(j.Image, path, "Dockerfile")
+	return docker.BuildDockerImage(j.Image, path, "Dockerfile")
 }
 
 // ListTests returns the list of all tests declared into a Java test suite in
@@ -35,10 +35,10 @@ func (j *JavaSeleniumTestSuite) ListTests() ([]string, error) {
 	defer cli.Close()
 	ctx := context.Background()
 
-	app := compose.App{
+	app := docker.App{
 		"testsuite": {Command: []string{"--list-tests"}, Image: j.Image},
 	}
-	instance, err := app.Start(&compose.StartConfig{})
+	instance, err := app.Start(&docker.StartConfig{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to start Java test suite container: %w", err)
 	}
@@ -48,7 +48,7 @@ func (j *JavaSeleniumTestSuite) ListTests() ([]string, error) {
 		}
 	}()
 
-	logs, err := compose.GetContainerLogs(ctx, cli, instance["testsuite"])
+	logs, err := docker.GetContainerLogs(ctx, cli, instance["testsuite"])
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (j *JavaSeleniumTestSuite) Run(config *RunConfig) ([]bool, error) {
 		env[variable] = nil
 	}
 
-	suite := compose.App{
+	suite := docker.App{
 		"testsuite": {
 			Command:     config.Tests,
 			Image:       j.Image,
@@ -91,7 +91,7 @@ func (j *JavaSeleniumTestSuite) Run(config *RunConfig) ([]bool, error) {
 	}()
 	log.Debugf("successfully started java test suite container %s", instance["testsuite"])
 
-	logs, err := compose.GetContainerLogs(ctx, cli, instance["testsuite"])
+	logs, err := docker.GetContainerLogs(ctx, cli, instance["testsuite"])
 	if err != nil {
 		return nil, err
 	}

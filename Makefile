@@ -12,7 +12,7 @@ endif
 
 .PHONY: all
 all:
-	GOOS=$(OS) GOARCH=$(ARCH) go build -o $(PROG_NAME)
+	GOOS=$(OS) GOARCH=$(ARCH) go build -o $(PROG_NAME) ./cmd/gtdd
 
 .PHONY: clean
 clean:

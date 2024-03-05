@@ -7,7 +7,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
-	"github.com/pako-23/gtdd/runners"
+	runner "github.com/pako-23/gtdd/internal/runner/compose-runner"
 )
 
 type PFAST struct{}
@@ -25,7 +25,7 @@ type PFAST struct{}
 func iterationPFAST(ctx context.Context, excludedTest, failedTest int, previousSchedule []string, ch chan<- edgeChannelData) {
 	var (
 		n       = ctx.Value("wait-group").(*sync.WaitGroup)
-		runners = ctx.Value("runners").(*runners.RunnerSet)
+		runners = ctx.Value("runners").(*runner.RunnerSet)
 		tests   = ctx.Value("tests").([]string)
 	)
 
@@ -74,8 +74,6 @@ func findPossibleTargets(tests []string, g *DependencyGraph) map[string]int {
 	targets := map[string]int{}
 	visited := map[string]struct{}{}
 
-	log.Info("Finding targets on tests %v", tests)
-
 	for i := len(tests) - 1; i >= 0; i-- {
 		if _, ok := visited[tests[i]]; ok {
 			continue
@@ -114,7 +112,7 @@ func detectFailingTests(ctx context.Context, schedules [][]string) (map[string]m
 		err      error
 	}
 
-	runners := ctx.Value("runners").(*runners.RunnerSet)
+	runners := ctx.Value("runners").(*runner.RunnerSet)
 	ch := make(chan results)
 	notPassing := map[string]map[int]struct{}{}
 
@@ -180,7 +178,7 @@ func solvedSchedule(notPassingTests map[string]map[int]struct{}, passedSchedules
 
 func cleanAddedEdges(ctx context.Context, i int, test string, g *DependencyGraph) error {
 	var (
-		runners = ctx.Value("runners").(*runners.RunnerSet)
+		runners = ctx.Value("runners").(*runner.RunnerSet)
 		tests   = ctx.Value("tests").([]string)
 	)
 
@@ -226,7 +224,7 @@ func cleanAddedEdges(ctx context.Context, i int, test string, g *DependencyGraph
 
 func recoveryPFAST(ctx context.Context, g *DependencyGraph) error {
 	var (
-		runners = ctx.Value("runners").(*runners.RunnerSet)
+		runners = ctx.Value("runners").(*runner.RunnerSet)
 		tests   = ctx.Value("tests").([]string)
 	)
 
@@ -291,7 +289,7 @@ func recoveryPFAST(ctx context.Context, g *DependencyGraph) error {
 
 // PFAST implements the pfast strategy to detect dependencies between
 // the tests into a given test suite. If there is any error, it is returned.
-func (_ *PFAST) FindDependencies(tests []string, r *runners.RunnerSet) (DependencyGraph, error) {
+func (*PFAST) FindDependencies(tests []string, r *runner.RunnerSet) (DetectorArtifact, error) {
 	ch := make(chan edgeChannelData)
 	n := sync.WaitGroup{}
 	g := NewDependencyGraph(tests)

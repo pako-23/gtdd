@@ -1,4 +1,4 @@
-package runners
+package compose_runner
 
 import (
 	"context"
@@ -8,8 +8,8 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
-	"github.com/pako-23/gtdd/compose"
-	"github.com/pako-23/gtdd/testsuite"
+	"github.com/pako-23/gtdd/internal/docker"
+	"github.com/pako-23/gtdd/internal/testsuite"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -17,12 +17,12 @@ import (
 type Runner struct {
 	// The running containers for the application against which the test
 	// suite is being run.
-	app compose.AppInstance
+	app docker.AppInstance
 	// The definition of the App against which the test suite is being run.
-	appDefinition *compose.App
+	appDefinition *docker.App
 	// The running containers for the drivers needed to run the test suite.
 	// An example could be the WebDriver to run a Selenium test suite.
-	driver compose.AppInstance
+	driver docker.AppInstance
 	// A name associated with the runner.
 	name string
 	// The ID of the Docker network in which all the Docker containers needed
@@ -60,7 +60,7 @@ func NewRunner(config *RunnerConfig) (*Runner, error) {
 	log.Debugf("[runner=%s] successfully created network with ID %s", config.Name, net.ID)
 
 	runner := &Runner{
-		app:           compose.AppInstance{},
+		app:           docker.AppInstance{},
 		appDefinition: config.App,
 		name:          config.Name,
 		network:       net.ID,
@@ -68,7 +68,7 @@ func NewRunner(config *RunnerConfig) (*Runner, error) {
 	}
 
 	if config.Driver != nil {
-		driver, err := config.Driver.Start(&compose.StartConfig{
+		driver, err := config.Driver.Start(&docker.StartConfig{
 			Context:  runner.name,
 			Networks: []string{net.ID},
 		})
@@ -120,7 +120,7 @@ func (r *Runner) ResetApplication() error {
 		return fmt.Errorf("app deletion failed in app reset:  %w", err)
 	}
 
-	instance, err := r.appDefinition.Start(&compose.StartConfig{
+	instance, err := r.appDefinition.Start(&docker.StartConfig{
 		Context:  r.name,
 		Networks: []string{r.network},
 	})
@@ -168,7 +168,7 @@ func (r *Runner) Run(tests []string) ([]bool, error) {
 	results, err := r.testSuite.Run(&testsuite.RunConfig{
 		Env:         r.testSuiteEnv,
 		Tests:       tests,
-		StartConfig: &compose.StartConfig{Networks: []string{r.network}},
+		StartConfig: &docker.StartConfig{Networks: []string{r.network}},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to run test suite on runner %s: %w", r.name, err)

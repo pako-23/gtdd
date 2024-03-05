@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/docker/docker/client"
-	"github.com/pako-23/gtdd/compose"
+	"github.com/pako-23/gtdd/internal/docker"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -18,7 +18,7 @@ type PlaywrightTestSuite struct {
 // Build produces the artifacts needed to run the Java test suite. It will
 // create a Docker image on the host. If there is any error it is returned.
 func (j *PlaywrightTestSuite) Build(path string) error {
-	return compose.BuildDockerImage(j.Image, path, "Dockerfile")
+	return docker.BuildDockerImage(j.Image, path, "Dockerfile")
 }
 
 // ListTests returns the list of all tests declared into a Java test suite in
@@ -31,10 +31,10 @@ func (j *PlaywrightTestSuite) ListTests() ([]string, error) {
 	defer cli.Close()
 	ctx := context.Background()
 
-	app := compose.App{
+	app := docker.App{
 		"testsuite": {Command: []string{"--list"}, Image: j.Image},
 	}
-	instance, err := app.Start(&compose.StartConfig{})
+	instance, err := app.Start(&docker.StartConfig{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to start Java test suite container: %w", err)
 	}
@@ -44,7 +44,7 @@ func (j *PlaywrightTestSuite) ListTests() ([]string, error) {
 		}
 	}()
 
-	logs, err := compose.GetContainerLogs(ctx, cli, instance["testsuite"])
+	logs, err := docker.GetContainerLogs(ctx, cli, instance["testsuite"])
 	if err != nil {
 		return nil, err
 	}

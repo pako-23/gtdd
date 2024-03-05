@@ -4,4 +4,4 @@
 
 // Create runners to run a specific test suite.
 
-package runners
+package compose_runner
