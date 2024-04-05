@@ -83,7 +83,6 @@ func parseConfiguration(cfgFile string) {
 // provided string representing the log level is not supported, the program
 // will exit with an error.
 func toLogLevel(level string) log.Level {
-
 	switch strings.ToLower(level) {
 	case log.InfoLevel.String():
 		return log.InfoLevel

@@ -21,6 +21,9 @@ func newDepsCmd() *cobra.Command {
 		Long: `Finds all the dependencies between tests into a provided test
 suite. The artifacts to run the test suite should already be
 built.`,
+		PreRun: func(cmd *cobra.Command, args []string) {
+			viper.BindPFlags(cmd.Flags())
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := args[0]
 
@@ -78,7 +81,6 @@ built.`,
 	depsCommand.Flags().StringP("strategy", "s", "pfast", "The strategy to detect dependencies between tests")
 	depsCommand.Flags().StringP("type", "t", "", "The test suite type")
 	depsCommand.Flags().UintP("runners", "r", runner.DefaultSetSize, "The number of concurrent runners")
-	viper.BindPFlags(depsCommand.Flags())
 
 	return depsCommand
 }

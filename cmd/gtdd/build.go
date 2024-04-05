@@ -2,14 +2,13 @@ package main
 
 import (
 	"fmt"
-	"path/filepath"
-
 	"github.com/pako-23/gtdd/internal/docker"
 	"github.com/pako-23/gtdd/internal/testsuite"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"golang.org/x/sync/errgroup"
+	"path/filepath"
 )
 
 func newBuildCmd() *cobra.Command {
@@ -19,6 +18,9 @@ func newBuildCmd() *cobra.Command {
 		Short: "Builds the artifacts needed to run a test suite",
 		Args:  cobra.ExactArgs(1),
 		Long:  `Creates all the artifacts needed to run the test suite.`,
+		PreRun: func(cmd *cobra.Command, args []string) {
+			viper.BindPFlags(cmd.Flags())
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := args[0]
 
@@ -61,7 +63,6 @@ func newBuildCmd() *cobra.Command {
 	}
 
 	buildCommand.Flags().StringP("type", "t", "", "The test suite type")
-	viper.BindPFlags(buildCommand.Flags())
 
 	return buildCommand
 }

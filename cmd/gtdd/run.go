@@ -29,6 +29,9 @@ func newRunCmd() *cobra.Command {
 		Long: `Runs a given test suite in parallel. The parallel schedules are
 computed based on a given graph. If no graph is provided, it
 will run the tests in the original order.`,
+		PreRun: func(cmd *cobra.Command, args []string) {
+			viper.BindPFlags(cmd.Flags())
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := args[0]
 
@@ -105,7 +108,6 @@ will run the tests in the original order.`,
 	runCommand.Flags().StringP("schedules", "s", "schedules.json", "A file containing the scedules to run")
 	runCommand.Flags().StringP("type", "t", "", "The test suite type")
 	runCommand.Flags().UintP("runners", "r", runner.DefaultSetSize, "The number of concurrent runners")
-	viper.BindPFlags(runCommand.Flags())
 
 	return runCommand
 }

@@ -17,6 +17,9 @@ func newSchedulesCmd() *cobra.Command {
 		Short: "Run a test suite with parallelism based on with a given graph",
 		Args:  cobra.ExactArgs(1),
 		Long:  `.`,
+		PreRun: func(cmd *cobra.Command, args []string) {
+			viper.BindPFlags(cmd.Flags())
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := args[0]
 
@@ -60,8 +63,6 @@ func newSchedulesCmd() *cobra.Command {
 	schedulesCommand.Flags().StringP("input", "i", "graph.json", "The path to the file containing the graph representing the dependencies between tests")
 	schedulesCommand.Flags().StringP("output", "o", "schedules.json", "The path where to write the resulting schedules")
 	schedulesCommand.Flags().StringP("type", "t", "", "The test suite type")
-
-	viper.BindPFlags(schedulesCommand.Flags())
 
 	return schedulesCommand
 }
