@@ -1,14 +1,10 @@
 package testsuite
 
 import (
-	"context"
 	"fmt"
 	"regexp"
 	"strings"
 
-	cgo "github.com/compose-spec/compose-go/types"
-
-	"github.com/docker/docker/client"
 	"github.com/pako-23/gtdd/internal/docker"
 	log "github.com/sirupsen/logrus"
 )
@@ -22,33 +18,40 @@ type JavaSeleniumTestSuite struct {
 // Build produces the artifacts needed to run the Java test suite. It will
 // create a Docker image on the host. If there is any error it is returned.
 func (j *JavaSeleniumTestSuite) Build(path string) error {
-	return docker.BuildDockerImage(j.Image, path, "Dockerfile")
+	client, err := docker.NewClient()
+	if err != err {
+		return err
+	}
+	defer client.Close()
+
+	return client.BuildImage(j.Image, path, "Dockerfile")
 }
 
 // ListTests returns the list of all tests declared into a Java test suite in
 // the order in which they are run. If there is any error, it is returned.
-func (j *JavaSeleniumTestSuite) ListTests() ([]string, error) {
-	cli, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())
-	if err != nil {
-		return nil, fmt.Errorf("failed to create client to list Java test suite tests: %w", err)
+func (j *JavaSeleniumTestSuite) ListTests() (tests []string, err error) {
+	client, err := docker.NewClient()
+	if err != err {
+		return nil, err
 	}
-	defer cli.Close()
-	ctx := context.Background()
+	defer client.Close()
 
 	app := docker.App{
 		"testsuite": {Command: []string{"--list-tests"}, Image: j.Image},
 	}
-	instance, err := app.Start(&docker.StartConfig{})
+	instance, err := client.Run(app, docker.RunOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to start Java test suite container: %w", err)
 	}
 	defer func() {
-		if err := instance.Delete(); err != nil {
-			log.Error(err)
+		deleteErr := client.Delete(instance)
+		if err == nil {
+			err = deleteErr
+
 		}
 	}()
 
-	logs, err := docker.GetContainerLogs(ctx, cli, instance["testsuite"])
+	logs, err := client.GetContainerLogs(instance["testsuite"])
 	if err != nil {
 		return nil, err
 	}
@@ -60,38 +63,34 @@ func (j *JavaSeleniumTestSuite) ListTests() ([]string, error) {
 // results. The test results are represented as booleans. If the test
 // is passed, the value is true; otherwise it is false. If there is
 // any error, it is returned.
-func (j *JavaSeleniumTestSuite) Run(config *RunConfig) ([]bool, error) {
-	cli, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())
+func (j *JavaSeleniumTestSuite) Run(config *RunConfig) (results []bool, err error) {
+	client, err := docker.NewClient()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client to run Java test suite: %w", err)
 	}
-	defer cli.Close()
-	ctx := context.Background()
-
-	env := cgo.MappingWithEquals{}
-	for _, variable := range config.Env {
-		env[variable] = nil
-	}
 
 	suite := docker.App{
-		"testsuite": {
+		config.Name: {
 			Command:     config.Tests,
 			Image:       j.Image,
-			Environment: env,
+			Environment: config.Env,
 		},
 	}
-	instance, err := suite.Start(config.StartConfig)
+
+	instance, err := client.Run(suite, *config.StartConfig)
 	if err != nil {
 		return nil, fmt.Errorf("error in starting java test suite container: %w", err)
 	}
 	defer func() {
-		if err := instance.Delete(); err != nil {
-			log.Error(err)
+		deleteErr := client.Delete(instance)
+		if err == nil {
+			err = deleteErr
+
 		}
 	}()
-	log.Debugf("successfully started java test suite container %s", instance["testsuite"])
+	log.Debugf("successfully started java test suite container %s", instance[config.Name])
 
-	logs, err := docker.GetContainerLogs(ctx, cli, instance["testsuite"])
+	logs, err := client.GetContainerLogs(instance[config.Name])
 	if err != nil {
 		return nil, err
 	}

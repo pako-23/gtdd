@@ -22,12 +22,13 @@ var ErrNotTestSuiteType = errors.New("no test suite type provided")
 // RunConfig represents the configurations that can be passed to a test suite
 // when it is run.
 type RunConfig struct {
+	Name string
 	// The environment to pass to the container running the test suite.
 	Env []string
 	// The list of tests to run.
 	Tests []string
 	// The configuration to apply to the container running the tests.
-	StartConfig *docker.StartConfig
+	StartConfig *docker.RunOptions
 }
 
 // TestSuite defines the operations that should be supported by a generic
@@ -61,8 +62,6 @@ func FactoryTestSuite(path, testSuiteType string) (TestSuite, error) {
 	switch testSuiteType {
 	case "java-selenium":
 		return &JavaSeleniumTestSuite{Image: filepath.Base(absolutePath)}, nil
-	case "playwright":
-		return &PlaywrightTestSuite{Image: filepath.Base(absolutePath)}, nil
 	default:
 		return nil, ErrNotSupportedTestSuiteType
 	}

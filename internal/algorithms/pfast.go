@@ -292,6 +292,7 @@ func recoveryPFAST(ctx context.Context, g *DependencyGraph) error {
 func (*PFAST) FindDependencies(tests []string, r *runner.RunnerSet) (DetectorArtifact, error) {
 	ch := make(chan edgeChannelData)
 	n := sync.WaitGroup{}
+
 	g := NewDependencyGraph(tests)
 
 	log.Debug("starting dependency detection algorithm")

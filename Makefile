@@ -28,7 +28,7 @@ ifdef CONTAINER_CLI
 lint:
 	$(CONTAINER_CLI) run -t --rm -v $(PWD):/app$(MOUNT_OPTIONS) \
 		-w /app \
-		golangci/golangci-lint:v1.54.2 \
+		golangci/golangci-lint:latest \
 		golangci-lint run
 endif
 
@@ -37,6 +37,12 @@ ifneq (,$(wildcard $(GOPATH)/bin/godoc))
 docs:
 	@$(GOPATH)/bin/godoc -http=:6060
 endif
+
+
+.PHONY: check
+check:
+	go test -race -coverprofile=coverage.cov ./...
+	go tool cover -html=coverage.cov -o coverage.html
 
 
 ifneq (,$(wildcard $(GOPATH)/bin/gofumpt))

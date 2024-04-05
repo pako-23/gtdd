@@ -180,7 +180,7 @@ func (d DependencyGraph) ToJSON(w io.Writer) {
 
 	data, err := json.MarshalIndent(graph, "", "  ")
 	if err != nil {
-		log.Errorf("failed to create json from data: %w", err)
+		log.Errorf("failed to create json from data: %v", err)
 	}
 
 	w.Write(data)
@@ -202,7 +202,7 @@ func (d DependencyGraph) ToDOT(w io.Writer) {
 	sort.Strings(tests)
 
 	for _, test := range tests {
-		w.Write([]byte(fmt.Sprintf("        \"%s\"\n", test)))
+		fmt.Fprintf(w, "        \"%s\"\n", test)
 	}
 
 	for _, test := range tests {
@@ -214,7 +214,7 @@ func (d DependencyGraph) ToDOT(w io.Writer) {
 		sort.Strings(dependencies)
 
 		for _, dependency := range dependencies {
-			w.Write([]byte(fmt.Sprintf("        \"%s\" -> \"%s\"\n", test, dependency)))
+			fmt.Fprintf(w, "        \"%s\" -> \"%s\"\n", test, dependency)
 		}
 	}
 
@@ -266,8 +266,8 @@ func NewDependencyDetector(strategy string) (DependencyDetector, error) {
 		return &PFAST{}, nil
 	case "pradet":
 		return &PraDet{}, nil
-	case "mem-fast":
-		return &MEMFAST{}, nil
+	// case "mem-fast":
+	// 	return &MEMFAST{}, nil
 	default:
 		return nil, ErrDependencyDetectorNotExisting
 	}

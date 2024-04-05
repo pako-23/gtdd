@@ -1,13 +1,10 @@
 package compose_runner
 
 import (
-	"context"
 	"fmt"
 	"regexp"
 	"strings"
 
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/client"
 	"github.com/pako-23/gtdd/internal/docker"
 	"github.com/pako-23/gtdd/internal/testsuite"
 	log "github.com/sirupsen/logrus"
@@ -19,7 +16,7 @@ type Runner struct {
 	// suite is being run.
 	app docker.AppInstance
 	// The definition of the App against which the test suite is being run.
-	appDefinition *docker.App
+	appDefinition docker.App
 	// The running containers for the drivers needed to run the test suite.
 	// An example could be the WebDriver to run a Selenium test suite.
 	driver docker.AppInstance
@@ -33,6 +30,8 @@ type Runner struct {
 	// The environment variables that should be passed to the container running
 	// the test suite.
 	testSuiteEnv []string
+
+	client *docker.Client
 }
 
 // RunnerConfig represents the configurations needed to create a runner.
@@ -46,40 +45,57 @@ type RunnerConfig struct {
 // NewRunner creates a new runner based on the runner configuration.
 // If there is an error, it is returned.
 func NewRunner(config *RunnerConfig) (*Runner, error) {
-	cli, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())
+	client, err := docker.NewClient()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client to create runner %s: %w", config.Name, err)
 	}
-	defer cli.Close()
-	ctx := context.Background()
 
-	net, err := cli.NetworkCreate(ctx, config.Name, types.NetworkCreate{})
+	net, err := client.NetworkCreate(config.Name)
 	if err != nil {
+		client.Close()
 		return nil, fmt.Errorf("failed to create network: %w", err)
 	}
-	log.Debugf("[runner=%s] successfully created network with ID %s", config.Name, net.ID)
+	log.Debugf("[runner=%s] successfully created network with ID %s", config.Name, net)
+
+	app, err := client.NewApp(config.App)
+	if err != nil {
+		client.Close()
+
+		return nil, err
+	}
 
 	runner := &Runner{
 		app:           docker.AppInstance{},
-		appDefinition: config.App,
+		appDefinition: app,
+		client:        client,
 		name:          config.Name,
-		network:       net.ID,
+		network:       net,
 		testSuite:     config.TestSuite,
 	}
 
-	if config.Driver != nil {
-		driver, err := config.Driver.Start(&docker.StartConfig{
-			Context:  runner.name,
-			Networks: []string{net.ID},
-		})
-		if err != nil {
-			if netErr := cli.NetworkRemove(ctx, net.ID); netErr != nil {
-				log.Error(netErr)
-			}
-			return nil, err
-		}
-		runner.driver = driver
+	if config.Driver == "" {
+		runner.testSuiteEnv = runner.translateEnv(config.TestSuiteEnv)
+
+		return runner, nil
 	}
+
+	driverDefinition, err := client.NewApp(config.Driver)
+	if err != nil {
+		return nil, err
+	}
+
+	driver, err := client.Run(driverDefinition, docker.RunOptions{
+		Prefix:   runner.name,
+		Networks: []string{net},
+	})
+	if err != nil {
+		client.Close()
+		if netErr := client.NetworkRemove(net); netErr != nil {
+			log.Error(netErr)
+		}
+		return nil, err
+	}
+	runner.driver = driver
 	runner.testSuiteEnv = runner.translateEnv(config.TestSuiteEnv)
 	log.Debugf("[runner=%s] successfully initialized", config.Name)
 
@@ -92,8 +108,8 @@ func NewRunner(config *RunnerConfig) (*Runner, error) {
 func (r *Runner) translateEnv(variables []string) []string {
 	newEnv := make([]string, len(variables))
 
-	hosts := make([]string, 0, len(*r.appDefinition)+len(r.driver))
-	for k := range *r.appDefinition {
+	hosts := make([]string, 0, len(r.appDefinition)+len(r.driver))
+	for k := range r.appDefinition {
 		hosts = append(hosts, k)
 	}
 	for k := range r.driver {
@@ -105,8 +121,9 @@ func (r *Runner) translateEnv(variables []string) []string {
 
 		for _, host := range hosts {
 			re := regexp.MustCompile(fmt.Sprintf("\\b%s\\b", host))
-			after = re.ReplaceAllString(after, fmt.Sprintf("%s-%s", host, r.name))
+			after = re.ReplaceAllString(after, fmt.Sprintf("%s-%s", r.name, host))
 		}
+
 		newEnv[index] = fmt.Sprintf("%s=%s", before, after)
 	}
 	return newEnv
@@ -116,12 +133,12 @@ func (r *Runner) translateEnv(variables []string) []string {
 // application and sets up the containers to run a provided application.
 // If there is an error in the process, it is returned.
 func (r *Runner) ResetApplication() error {
-	if err := r.app.Delete(); err != nil {
+	if err := r.client.Delete(r.app); err != nil {
 		return fmt.Errorf("app deletion failed in app reset:  %w", err)
 	}
 
-	instance, err := r.appDefinition.Start(&docker.StartConfig{
-		Context:  r.name,
+	instance, err := r.client.Run(r.appDefinition, docker.RunOptions{
+		Prefix:   r.name,
 		Networks: []string{r.network},
 	})
 	if err != nil {
@@ -136,27 +153,22 @@ func (r *Runner) ResetApplication() error {
 // Delete releases all the resources allocated for the runner. If there is an
 // error in the process, it is returned.
 func (r *Runner) Delete() error {
-	cli, err := client.NewClientWithOpts(client.WithAPIVersionNegotiation())
-	if err != nil {
-		return fmt.Errorf("failed to create docker client for runner deletion: %w", err)
-	}
-	defer cli.Close()
-	ctx := context.Background()
 
-	if err := r.driver.Delete(); err != nil {
+	if err := r.client.Delete(r.driver); err != nil {
 		return fmt.Errorf("driver deletion failed when deleting runner %s: %w", r.name, err)
 	}
 	log.Debugf("[runner=%s] successfully deleted driver", r.name)
 
-	if err := r.app.Delete(); err != nil {
+	if err := r.client.Delete(r.app); err != nil {
 		return fmt.Errorf("app deletion failed when deleting runner %s: %w", r.name, err)
 	}
 	log.Debugf("[runner=%s] successfully deleted app", r.name)
 
-	if err := cli.NetworkRemove(ctx, r.network); err != nil {
+	if err := r.client.NetworkRemove(r.network); err != nil {
 		return fmt.Errorf("network deletion failed when deleting runner %s: %w", r.name, err)
 	}
 	log.Debugf("[runner=%s] successfully deleted network", r.name)
+	_ = r.client.Close()
 
 	return nil
 }
@@ -166,9 +178,10 @@ func (r *Runner) Delete() error {
 // false. If there is any error, it is returned.
 func (r *Runner) Run(tests []string) ([]bool, error) {
 	results, err := r.testSuite.Run(&testsuite.RunConfig{
+		Name:        fmt.Sprintf("%s-testsuite", r.name),
 		Env:         r.testSuiteEnv,
 		Tests:       tests,
-		StartConfig: &docker.StartConfig{Networks: []string{r.network}},
+		StartConfig: &docker.RunOptions{Networks: []string{r.network}},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to run test suite on runner %s: %w", r.name, err)

@@ -1,12 +1,10 @@
 package compose_runner
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"sync"
 
-	"github.com/pako-23/gtdd/internal/docker"
 	"github.com/pako-23/gtdd/internal/testsuite"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
@@ -20,9 +18,9 @@ var ErrNoRunner = errors.New("no runner to reserve")
 // RunnerSetConfig represents the configurations needed to create a RunnerSer.
 type RunnerSetConfig struct {
 	// The App to configure on the runners.
-	App *docker.App
+	App string
 	// The driver used to configure the runners.
-	Driver *docker.App
+	Driver string
 	// The number of runners to include in the set.
 	Runners uint
 	// The test suite to run into the runner.
@@ -37,9 +35,6 @@ type RunnerSet struct {
 	runners map[string]*Runner
 	// Tokens to reserve a runner.
 	tokens chan string
-
-	ctx    context.Context
-	cancel context.CancelFunc
 }
 
 // NewRunnerSet creates a new set of runner with the provided configuration.
@@ -51,10 +46,6 @@ func NewRunnerSet(config *RunnerSetConfig) (*RunnerSet, error) {
 		runners: map[string]*Runner{},
 		tokens:  make(chan string, config.Runners),
 	}
-	if err := config.Driver.Setup(); err != nil {
-		return nil, fmt.Errorf("failed to pull driver artifacts when creating runner set: %w", err)
-	}
-	log.Debugf("successfully pulled images for the test driver")
 
 	for i := uint(0); i < config.Runners; i++ {
 		runnerName := fmt.Sprintf("runner-%d", i)
@@ -72,14 +63,14 @@ func NewRunnerSet(config *RunnerSetConfig) (*RunnerSet, error) {
 		set.runners[runnerName] = runner
 
 		n.Add(1)
-		go func(runnerID string) {
+		go func(runnerName string) {
 			defer n.Done()
+
 			set.Release(runnerName)
 		}(runnerName)
 	}
 	n.Wait()
 	log.Infof("successfully initialized %d runners", len(set.runners))
-	set.ctx, set.cancel = context.WithCancel(context.Background())
 
 	return &set, nil
 }
@@ -88,7 +79,7 @@ func NewRunnerSet(config *RunnerSetConfig) (*RunnerSet, error) {
 // If there is an error in the process, it is returned.
 func (r *RunnerSet) Delete() error {
 	var waitgroup errgroup.Group
-	r.cancel()
+
 	for range r.runners {
 		waitgroup.Go(func() error {
 			return r.Get(<-r.tokens).Delete()
@@ -112,12 +103,7 @@ func (r *RunnerSet) Reserve() (string, error) {
 		return "", ErrNoRunner
 	}
 
-	select {
-	case <-r.ctx.Done():
-		return "", ErrNoRunner
-	case token := <-r.tokens:
-		return token, nil
-	}
+	return <-r.tokens, nil
 }
 
 // Release deletes the reservation for a given runner. It requires the
