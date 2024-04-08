@@ -10,8 +10,8 @@ the dependencies discovered.
 
 ## To start using gtdd
 
-Ensure you have a a working [Go environment], and execute the
-following commands.
+Ensure you have a working [Go environment], and execute the following
+commands.
 
 ```bash
 git clone https://github.com/pako-23/gtdd.git
