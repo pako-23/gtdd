@@ -8,7 +8,7 @@ import (
 	"os"
 	"sort"
 
-	runner "github.com/pako-23/gtdd/internal/runner/compose-runner"
+	"github.com/pako-23/gtdd/internal/runner"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -18,14 +18,6 @@ var ErrDependencyDetectorNotExisting = errors.New("the dependency detection stra
 type edge struct {
 	from string
 	to   string
-}
-
-type DetectorArtifact interface {
-	ToJSON(w io.Writer)
-}
-
-type DependencyDetector interface {
-	FindDependencies([]string, *runner.RunnerSet) (DetectorArtifact, error)
 }
 
 // edgeChannelData represents the edge data exchanged on channels when running
@@ -42,7 +34,7 @@ type edgeChannelData struct {
 // and each edge represents the dependency relationship between the tests.
 type DependencyGraph map[string]map[string]struct{}
 
-type ParallelSchedules [][]string
+type DependencyDetector func([]string, *runner.RunnerSet[runner.Runner]) (DependencyGraph, error)
 
 // NewDependencyGraph returns a DependencyGraph without any edges from a
 // list of tests.
@@ -83,7 +75,7 @@ func DependencyGraphFromJson(fileName string) (DependencyGraph, error) {
 	g := NewDependencyGraph(tests)
 	for test, dependencies := range graph {
 		for _, dependency := range dependencies {
-			g.AddDependency(test, dependency)
+			g.addDependency(test, dependency)
 		}
 	}
 
@@ -92,25 +84,47 @@ func DependencyGraphFromJson(fileName string) (DependencyGraph, error) {
 
 // AddDependency adds a dependency relationship between two tests of a
 // test suite.
-func (d DependencyGraph) AddDependency(from, to string) {
+func (d DependencyGraph) addDependency(from, to string) {
 	d[from][to] = struct{}{}
 }
 
 // RemoveDependency removes a dependency relationship between two tests of a
 // test suite.
-func (d DependencyGraph) RemoveDependency(from, to string) {
+func (d DependencyGraph) removeDependency(from, to string) {
 	delete(d[from], to)
 }
 
 // InvertDependency inverts a dependency relationship between two tests of a
 // test suite.
-func (d DependencyGraph) InvertDependency(from, to string) {
-	d.RemoveDependency(from, to)
-	d.AddDependency(to, from)
+func (d DependencyGraph) invertDependency(from, to string) {
+	d.removeDependency(from, to)
+	d.addDependency(to, from)
+}
+
+func (d DependencyGraph) Equal(other DependencyGraph) bool {
+	if len(d) != len(other) {
+		return false
+	}
+
+	for node, otherEdges := range other {
+		edges, ok := d[node]
+		if !ok || len(edges) != len(otherEdges) {
+			return false
+		}
+
+		for to := range otherEdges {
+			if _, ok := edges[to]; !ok {
+				return false
+			}
+		}
+	}
+
+	return true
+
 }
 
 // GetDependencies returns all the dependencies of a given test.
-func (d DependencyGraph) GetDependencies(test string) map[string]struct{} {
+func (d DependencyGraph) getDependencies(test string) map[string]struct{} {
 	var (
 		dependencies = map[string]struct{}{}
 		stack        = []string{}
@@ -138,7 +152,7 @@ func (d DependencyGraph) GetDependencies(test string) map[string]struct{} {
 }
 
 // TransitiveReduction computes the transitive reduction of a dependency graph.
-func (d DependencyGraph) TransitiveReduction() {
+func (d DependencyGraph) transitiveReduction() {
 	for node, edges := range d {
 		minEdges := make(map[string]struct{})
 
@@ -147,7 +161,7 @@ func (d DependencyGraph) TransitiveReduction() {
 		}
 
 		for v := range edges {
-			dependencies := d.GetDependencies(v)
+			dependencies := d.getDependencies(v)
 
 			for u := range edges {
 				_, isDependency := dependencies[u]
@@ -166,7 +180,7 @@ func (d DependencyGraph) TransitiveReduction() {
 // ToJSON returns a JSON representation of the dependencies relationship
 // between tests of a test suite.
 func (d DependencyGraph) ToJSON(w io.Writer) {
-	d.TransitiveReduction()
+	d.transitiveReduction()
 	graph := map[string][]string{}
 
 	for test, dependencies := range d {
@@ -235,7 +249,7 @@ func (d DependencyGraph) GetSchedules(tests []string) [][]string {
 			continue
 		}
 
-		deps := d.GetDependencies(tests[i])
+		deps := d.getDependencies(tests[i])
 		schedule := []string{}
 
 		for _, item := range tests {
@@ -249,26 +263,4 @@ func (d DependencyGraph) GetSchedules(tests []string) [][]string {
 	}
 
 	return schedules
-}
-
-func (p ParallelSchedules) ToJSON(w io.Writer) {
-	data, err := json.MarshalIndent(p, "", "  ")
-	if err != nil {
-		log.Errorf("failed to create json representation of schedules: %v", err)
-	}
-
-	w.Write(data)
-}
-
-func NewDependencyDetector(strategy string) (DependencyDetector, error) {
-	switch strategy {
-	case "pfast":
-		return &PFAST{}, nil
-	case "pradet":
-		return &PraDet{}, nil
-	// case "mem-fast":
-	// 	return &MEMFAST{}, nil
-	default:
-		return nil, ErrDependencyDetectorNotExisting
-	}
 }

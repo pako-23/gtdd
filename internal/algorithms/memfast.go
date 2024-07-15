@@ -1,14 +1,13 @@
 package algorithms
 
 import (
+	"fmt"
 	"sync"
 
-	runner "github.com/pako-23/gtdd/internal/runner/compose-runner"
+	"github.com/pako-23/gtdd/internal/runner"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 )
-
-type MEMFAST struct{}
 
 type schedule []string
 
@@ -18,7 +17,11 @@ type result struct {
 	err      error
 }
 
-type table [][]schedule
+type table struct {
+	table  [][]schedule
+	failed map[string]struct{}
+	mu     sync.Mutex
+}
 
 func (r result) Passed() bool {
 	for _, outcome := range r.outcome {
@@ -29,70 +32,15 @@ func (r result) Passed() bool {
 	return true
 }
 
-func (t table) getParallelSchedules() ParallelSchedules {
-	initialScan := []schedule{}
-	result := ParallelSchedules{}
-	covered := map[string]struct{}{}
-
-	for _, schedules := range t {
-		for _, s := range schedules {
-			if _, ok := covered[s[len(s)-1]]; !ok {
-				initialScan = append(initialScan, s)
-				covered[s[len(s)-1]] = struct{}{}
-			}
-		}
-	}
-
-	covered = map[string]struct{}{}
-	for i := len(initialScan) - 1; i >= 0; i++ {
-		toAdd := false
-		for _, test := range initialScan[i] {
-			if _, ok := covered[test]; !ok {
-				toAdd = true
-				covered[test] = struct{}{}
-			}
-		}
-		if toAdd {
-			result = append(result, initialScan[i])
-		}
-	}
-
-	return result
-}
-
-func buildReverseIndex(tests []string) map[string]int {
-	revIndex := map[string]int{}
-	for index, test := range tests {
-		revIndex[test] = index
-	}
-
-	return revIndex
-}
-
-func runSchedule(r *runner.RunnerSet, s schedule, ch chan<- result) {
-	runnerId, err := r.Reserve()
-	if err != nil {
-		ch <- result{nil, nil, err}
-		return
-	}
-	defer func() { go r.Release(runnerId) }()
-	results, err := r.Get(runnerId).Run(s)
-	if err != nil {
-		ch <- result{nil, nil, err}
-		return
-	}
-	log.Debugf("run tests %v -> %v", s, results)
-
-	ch <- result{schedule: s, outcome: results, err: nil}
-}
-
-func initTable(tests []string, r *runner.RunnerSet) (map[string]struct{}, table, error) {
-
+func newTable(tests []string, r *runner.RunnerSet[runner.Runner]) (*table, error) {
 	var (
-		notPassed = map[string]struct{}{}
-		t         = table{[]schedule{}}
-		n         = sync.WaitGroup{}
-		ch        = make(chan result)
+		t = &table{
+			failed: map[string]struct{}{},
+			table:  [][]schedule{{}},
+			mu:     sync.Mutex{},
+		}
+		n  = sync.WaitGroup{}
+		ch = make(chan result)
 	)
 
 	for _, test := range tests {
@@ -111,20 +59,64 @@ func initTable(tests []string, r *runner.RunnerSet) (map[string]struct{}, table,
 	for res := range ch {
 		if res.err != nil {
 			close(ch)
-			return nil, nil, res.err
+			return nil, res.err
 		}
 
 		if res.outcome[0] {
-			t[0] = append(t[0], res.schedule)
+			t.table[0] = append(t.table[0], res.schedule)
 		} else {
-			notPassed[res.schedule[0]] = struct{}{}
+			t.failed[res.schedule[0]] = struct{}{}
 		}
 	}
 
 	log.Infof("table: %v", t)
-	log.Infof("not passed: %v", notPassed)
+	log.Infof("not passed: %v", t.failed)
 
-	return notPassed, t, nil
+	return t, nil
+}
+
+func (t *table) uniqueInsert(s schedule) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	for _, stored := range t.table[len(s)-1] {
+		equal := true
+
+		for i := range stored {
+			if stored[i] != s[i] {
+				equal = false
+				break
+			}
+		}
+
+		if equal {
+			return false
+		}
+	}
+
+	t.table[len(s)-1] = append(t.table[len(s)-1], s)
+
+	return true
+}
+
+func buildReverseIndex(tests []string) map[string]int {
+	revIndex := map[string]int{}
+	for index, test := range tests {
+		revIndex[test] = index
+	}
+
+	return revIndex
+}
+
+func runSchedule(r *runner.RunnerSet[runner.Runner], s schedule, ch chan<- result) {
+	results, err := r.RunSchedule(s)
+	if err != nil {
+		ch <- result{nil, nil, err}
+		return
+	}
+	log.Debugf("run tests %v -> %v", s, results.Results)
+
+	ch <- result{schedule: s, outcome: results.Results, err: nil}
 }
 
 func mergeSchedules(s1 schedule, s2 schedule, revIndex map[string]int) schedule {
@@ -153,24 +145,25 @@ func mergeSchedules(s1 schedule, s2 schedule, revIndex map[string]int) schedule 
 	return result
 }
 
-func (*MEMFAST) FindDependencies(tests []string, r *runner.RunnerSet) (DetectorArtifact, error) {
+func MEMFAST(tests []string, r *runner.RunnerSet[runner.Runner]) (DependencyGraph, error) {
 
 	revIndex := buildReverseIndex(tests)
 
+	g := NewDependencyGraph(tests)
+
 	log.Info("starting dependency detection algorithm")
-	log.Infof("detection on test suite: %v", tests)
-	notPassed, t, err := initTable(tests, r)
+	t, err := newTable(tests, r)
 	if err != nil {
 		return nil, err
 	}
 
 	for rank := 1; rank < len(tests); rank++ {
-		t = append(t, []schedule{})
+		t.table = append(t.table, []schedule{})
 		n := sync.WaitGroup{}
 		ch := make(chan result)
 
-		for test := range notPassed {
-			for _, seq := range t[rank-1] {
+		for test := range t.failed {
+			for _, seq := range t.table[rank-1] {
 				if revIndex[seq[len(seq)-1]] > revIndex[test] {
 					continue
 				}
@@ -187,7 +180,6 @@ func (*MEMFAST) FindDependencies(tests []string, r *runner.RunnerSet) (DetectorA
 			close(ch)
 		}()
 
-		someTestPassed := false
 		for res := range ch {
 			if res.err != nil {
 				close(ch)
@@ -195,10 +187,18 @@ func (*MEMFAST) FindDependencies(tests []string, r *runner.RunnerSet) (DetectorA
 			}
 
 			if firstFailed := slices.Index(res.outcome, false); firstFailed == -1 {
-				t[len(res.schedule)-1] = append(t[len(res.schedule)-1], res.schedule)
-				delete(notPassed, res.schedule[len(res.schedule)-1])
-				someTestPassed = true
+				passedTest := res.schedule[len(res.schedule)-1]
+				last := len(res.schedule) - 1
+
+				t.table[last] = append(t.table[last], res.schedule)
+
+				if _, ok := t.failed[passedTest]; ok {
+					delete(t.failed, passedTest)
+					g.addDependency(passedTest, res.schedule[len(res.schedule)-2])
+				}
+
 				log.Infof("done with test: %s", res.schedule[len(res.schedule)-1])
+
 			} else if firstFailed != len(res.outcome)-1 {
 				n.Add(1)
 				go func(s schedule) {
@@ -208,40 +208,49 @@ func (*MEMFAST) FindDependencies(tests []string, r *runner.RunnerSet) (DetectorA
 			}
 		}
 
-		if len(notPassed) == 0 {
+		if len(t.failed) == 0 {
 			break
-		} else if _, ok := notPassed[tests[rank]]; !ok && someTestPassed {
-			log.Infof("finished on rank %d, size of not passed: %d", rank, len(notPassed))
+		} else if _, ok := t.failed[tests[rank]]; !ok {
+			log.Infof("finished on rank %d, size of not passed: %d", rank, len(t.failed))
 			continue
 		}
 
 		log.Info("starting brute force")
+		test := tests[rank]
 
-		for maxLen := 2; maxLen <= rank; maxLen++ {
+		for prefixLen := 2; prefixLen <= rank; prefixLen++ {
 			ch = make(chan result)
-			for test := range notPassed {
-				for base := 1; base <= maxLen/2; base++ {
-					for _, s1 := range t[base-1] {
-						if revIndex[s1[len(s1)-1]] > revIndex[test] {
+			for base := 1; base <= prefixLen/2; base++ {
+				for _, s1 := range t.table[base-1] {
+					if revIndex[s1[len(s1)-1]] > revIndex[test] {
+						continue
+					}
+
+					for _, s2 := range t.table[prefixLen-base-1] {
+						if revIndex[s2[len(s2)-1]] > revIndex[test] {
 							continue
 						}
 
-						for _, s2 := range t[maxLen-base-1] {
-							if revIndex[s2[len(s2)-1]] > revIndex[test] {
-								continue
+						n.Add(1)
+						go func(s1, s2 schedule, test string) {
+							defer n.Done()
+
+							mergedSchedule := mergeSchedules(s1, s2, revIndex)
+							if len(mergedSchedule) == 0 {
+								return
+							} else if !t.uniqueInsert(mergedSchedule) {
+								return
 							}
 
-							n.Add(1)
-							go func(s1, s2 schedule, test string) {
-								defer n.Done()
-								s := append(mergeSchedules(s1, s2, revIndex), test)
-								runSchedule(r, s, ch)
-							}(s1, s2, test)
+							s := append(mergedSchedule, test)
 
-						}
+							fmt.Printf("trying schedule %v\n", s)
+
+							runSchedule(r, s, ch)
+						}(s1, s2, test)
+
 					}
 				}
-
 			}
 
 			go func() {
@@ -256,24 +265,33 @@ func (*MEMFAST) FindDependencies(tests []string, r *runner.RunnerSet) (DetectorA
 				}
 
 				if res.Passed() {
-					log.Infof("done with test: %s, schedule %v", res.schedule[len(res.schedule)-1], res.schedule)
-					t[len(res.schedule)-1] = append(t[len(res.schedule)-1], res.schedule)
-					delete(notPassed, res.schedule[len(res.schedule)-1])
+					last := len(res.schedule) - 1
+					log.Infof("done with test: %s, schedule %v",
+						res.schedule[last], res.schedule)
+					t.table[last] = append(t.table[last], res.schedule)
+					delete(t.failed, res.schedule[last])
+
+					for i := 0; i < len(res.schedule)-1; i++ {
+						g.addDependency(res.schedule[len(res.schedule)-1],
+							res.schedule[i])
+					}
 				}
 			}
 
-			if _, ok := notPassed[tests[rank]]; !ok {
+			if _, ok := t.failed[tests[rank]]; !ok {
 				break
 			}
 		}
 
-		if _, ok := notPassed[tests[rank]]; ok {
+		if _, ok := t.failed[tests[rank]]; ok {
 			log.Warnf("issue with test: %s", tests[rank])
 		}
 
-		log.Infof("finished on rank %d, size of not passed: %d, table: %v", rank, len(notPassed), t)
+		log.Infof("finished on rank %d, size of not passed: %d, table: %v", rank, len(t.failed), t)
 	}
 	log.Info("finished dependency detection algorithm")
 
-	return t.getParallelSchedules(), nil
+	g.transitiveReduction()
+
+	return g, nil
 }

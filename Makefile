@@ -16,7 +16,7 @@ all:
 
 .PHONY: clean
 clean:
-	go clean
+	go clean -cache -testcache
 	rm -rf $(PROG_NAME)
 
 .PHONY: dep

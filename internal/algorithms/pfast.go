@@ -7,10 +7,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
-	runner "github.com/pako-23/gtdd/internal/runner/compose-runner"
+	"github.com/pako-23/gtdd/internal/runner"
 )
-
-type PFAST struct{}
 
 // iterationPFAST performs one iteration of the pfast strategy to detect
 // dependencies between the tests of a test suite. The strategy works
@@ -25,29 +23,21 @@ type PFAST struct{}
 func iterationPFAST(ctx context.Context, excludedTest, failedTest int, previousSchedule []string, ch chan<- edgeChannelData) {
 	var (
 		n       = ctx.Value("wait-group").(*sync.WaitGroup)
-		runners = ctx.Value("runners").(*runner.RunnerSet)
+		runners = ctx.Value("runners").(*runner.RunnerSet[runner.Runner])
 		tests   = ctx.Value("tests").([]string)
 	)
 
 	defer n.Done()
 	schedule := remove(previousSchedule, failedTest)
-	runnerID, err := runners.Reserve()
+	results, err := runners.RunSchedule(schedule)
 	if err != nil {
 		ch <- edgeChannelData{edge: edge{from: "", to: ""}, err: err}
 
 		return
 	}
-	defer func() { go runners.Release(runnerID) }()
+	log.Debugf("run tests %v -> %v", schedule, results.Results)
 
-	results, err := runners.Get(runnerID).Run(schedule)
-	if err != nil {
-		ch <- edgeChannelData{edge: edge{from: "", to: ""}, err: err}
-
-		return
-	}
-	log.Debugf("run tests %v -> %v", schedule, results)
-
-	if firstFailed := slices.Index(results, false); firstFailed == -1 {
+	if firstFailed := slices.Index(results.Results, false); firstFailed == -1 {
 		return
 	} else if firstFailed < excludedTest {
 		n.Add(1)
@@ -79,7 +69,7 @@ func findPossibleTargets(tests []string, g *DependencyGraph) map[string]int {
 			continue
 		}
 
-		deps := g.GetDependencies(tests[i])
+		deps := g.getDependencies(tests[i])
 		targets[tests[i]] = len(deps)
 		visited[tests[i]] = struct{}{}
 
@@ -93,7 +83,7 @@ func findPossibleTargets(tests []string, g *DependencyGraph) map[string]int {
 
 func selectTarget(targets map[string]int) string {
 	res := ""
-	max := 0
+	max := -1
 
 	for target, value := range targets {
 		if value > max {
@@ -112,29 +102,21 @@ func detectFailingTests(ctx context.Context, schedules [][]string) (map[string]m
 		err      error
 	}
 
-	runners := ctx.Value("runners").(*runner.RunnerSet)
+	runners := ctx.Value("runners").(*runner.RunnerSet[runner.Runner])
 	ch := make(chan results)
 	notPassing := map[string]map[int]struct{}{}
 
 	for i := range schedules {
 		go func(index int) {
-			runnerID, err := runners.Reserve()
+			out, err := runners.RunSchedule(schedules[index])
 			if err != nil {
 				ch <- results{err: err}
 
 				return
 			}
+			log.Debugf("run tests %v -> %v", schedules[index], out.Results)
 
-			out, err := runners.Get(runnerID).Run(schedules[index])
-			go runners.Release(runnerID)
-			if err != nil {
-				ch <- results{err: err}
-
-				return
-			}
-			log.Debugf("run tests %v -> %v", schedules[index], out)
-
-			ch <- results{schedule: index, results: out, err: nil}
+			ch <- results{schedule: index, results: out.Results, err: nil}
 		}(i)
 	}
 
@@ -178,19 +160,20 @@ func solvedSchedule(notPassingTests map[string]map[int]struct{}, passedSchedules
 
 func cleanAddedEdges(ctx context.Context, i int, test string, g *DependencyGraph) error {
 	var (
-		runners = ctx.Value("runners").(*runner.RunnerSet)
+		runners = ctx.Value("runners").(*runner.RunnerSet[runner.Runner])
 		tests   = ctx.Value("tests").([]string)
 	)
 
 	targets := findPossibleTargets(tests[:i], g)
 	for target := range targets {
 		log.Infof("recovery add edge %s -> %s", test, target)
-		g.AddDependency(test, target)
+		g.addDependency(test, target)
 	}
 
 	for target := selectTarget(targets); target != ""; target = selectTarget(targets) {
-		g.RemoveDependency(test, target)
-		deps := g.GetDependencies(test)
+		log.Infof("exploring target %s", target)
+		g.removeDependency(test, target)
+		deps := g.getDependencies(test)
 
 		schedule := []string{}
 		for _, test := range tests {
@@ -199,24 +182,17 @@ func cleanAddedEdges(ctx context.Context, i int, test string, g *DependencyGraph
 			}
 		}
 		schedule = append(schedule, test)
-
-		runnerID, err := runners.Reserve()
+		results, err := runners.RunSchedule(schedule)
 		if err != nil {
 			return err
 		}
+		log.Debugf("run tests %v -> %v", schedule, results.Results)
 
-		results, err := runners.Get(runnerID).Run(schedule)
-		go runners.Release(runnerID)
-		if err != nil {
-			return err
-		}
-		log.Debugf("run tests %v -> %v", schedule, results)
-
-		if firstFailed := slices.Index(results, false); firstFailed == -1 {
+		if firstFailed := slices.Index(results.Results, false); firstFailed == -1 {
 			delete(targets, target)
 		} else if firstFailed == len(schedule)-1 {
 			delete(targets, target)
-			g.AddDependency(test, target)
+			g.addDependency(test, target)
 		}
 	}
 	return nil
@@ -224,7 +200,7 @@ func cleanAddedEdges(ctx context.Context, i int, test string, g *DependencyGraph
 
 func recoveryPFAST(ctx context.Context, g *DependencyGraph) error {
 	var (
-		runners = ctx.Value("runners").(*runner.RunnerSet)
+		runners = ctx.Value("runners").(*runner.RunnerSet[runner.Runner])
 		tests   = ctx.Value("tests").([]string)
 	)
 
@@ -247,7 +223,7 @@ func recoveryPFAST(ctx context.Context, g *DependencyGraph) error {
 			return err
 		}
 
-		deps := g.GetDependencies(test)
+		deps := g.getDependencies(test)
 		prefix := []string{}
 		for _, test := range tests {
 			if _, ok := deps[test]; ok {
@@ -265,20 +241,13 @@ func recoveryPFAST(ctx context.Context, g *DependencyGraph) error {
 			index := slices.Index(schedules[s], test)
 			schedule := prefix
 			schedule = append(schedule, schedules[s][index:]...)
-
-			runnerID, err := runners.Reserve()
+			results, err := runners.RunSchedule(schedule)
 			if err != nil {
 				return err
 			}
+			log.Debugf("run tests %v -> %v", schedule, results.Results)
 
-			results, err := runners.Get(runnerID).Run(schedule)
-			go runners.Release(runnerID)
-			if err != nil {
-				return err
-			}
-			log.Debugf("run tests %v -> %v", schedule, results)
-
-			if firstFailed := slices.Index(results, false); firstFailed == -1 {
+			if firstFailed := slices.Index(results.Results, false); firstFailed == -1 {
 				passedSchedules[s] = struct{}{}
 			}
 		}
@@ -289,7 +258,7 @@ func recoveryPFAST(ctx context.Context, g *DependencyGraph) error {
 
 // PFAST implements the pfast strategy to detect dependencies between
 // the tests into a given test suite. If there is any error, it is returned.
-func (*PFAST) FindDependencies(tests []string, r *runner.RunnerSet) (DetectorArtifact, error) {
+func PFAST(tests []string, r *runner.RunnerSet[runner.Runner]) (DependencyGraph, error) {
 	ch := make(chan edgeChannelData)
 	n := sync.WaitGroup{}
 
@@ -321,7 +290,7 @@ func (*PFAST) FindDependencies(tests []string, r *runner.RunnerSet) (DetectorArt
 		if result.err != nil {
 			return nil, result.err
 		}
-		g.AddDependency(result.from, result.to)
+		g.addDependency(result.from, result.to)
 	}
 
 	if err := recoveryPFAST(ctx, &g); err != nil {
@@ -329,6 +298,7 @@ func (*PFAST) FindDependencies(tests []string, r *runner.RunnerSet) (DetectorArt
 	}
 
 	log.Debug("finished dependency detection algorithm")
+	g.transitiveReduction()
 
 	return g, nil
 }

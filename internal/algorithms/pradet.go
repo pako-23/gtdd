@@ -3,55 +3,54 @@ package algorithms
 import (
 	"fmt"
 
+	"github.com/pako-23/gtdd/internal/runner"
 	log "github.com/sirupsen/logrus"
-
-	runner "github.com/pako-23/gtdd/internal/runner/compose-runner"
 )
 
-type PraDet struct{}
-
-func edgeSelectPraDet(g DependencyGraph, edges []edge, it int) (int, map[string]struct{}) {
+func edgeSelectPraDet(g DependencyGraph, edges []edge) (int, map[string]struct{}) {
 	triedEdges := 1
-	g.InvertDependency(edges[it].from, edges[it].to)
+	it := 0
+	g.invertDependency(edges[it].from, edges[it].to)
 
-	deps := g.GetDependencies(edges[it].to)
+	deps := g.getDependencies(edges[it].to)
 
 	_, cycle := deps[edges[it].to]
 
 	for cycle {
-		g.InvertDependency(edges[it].to, edges[it].from)
+		g.invertDependency(edges[it].to, edges[it].from)
 		if triedEdges == len(edges) {
 			return -1, nil
 		}
 
 		it += 1
-		if it == len(edges) {
-			it = 0
-		}
 		triedEdges += 1
 
-		g.InvertDependency(edges[it].from, edges[it].to)
-		deps = g.GetDependencies(edges[it].to)
+		g.invertDependency(edges[it].from, edges[it].to)
+		deps = g.getDependencies(edges[it].to)
 		_, cycle = deps[edges[it].to]
 	}
 
 	return it, deps
 }
 
-func (*PraDet) FindDependencies(tests []string, oracle *runner.RunnerSet) (DetectorArtifact, error) {
+func PraDet(tests []string, oracle *runner.RunnerSet[runner.Runner]) (DependencyGraph, error) {
 	g := NewDependencyGraph(tests)
 	edges := []edge{}
+
+	if len(g) <= 1 {
+		return g, nil
+	}
 
 	for i := 1; i < len(tests); i++ {
 		for j := i; j < len(tests); j++ {
 			edges = append(edges, edge{from: tests[j], to: tests[j-i]})
-			g.AddDependency(tests[j], tests[j-i])
+			g.addDependency(tests[j], tests[j-i])
 		}
 	}
 	log.Debug("starting dependency detection algorithm")
 
-	it, deps := edgeSelectPraDet(g, edges, 0)
-	for it >= 0 {
+	it, deps := edgeSelectPraDet(g, edges)
+	for len(edges) > 0 && it >= 0 {
 		schedule := []string{}
 		for _, test := range tests {
 			if _, ok := deps[test]; ok {
@@ -59,42 +58,36 @@ func (*PraDet) FindDependencies(tests []string, oracle *runner.RunnerSet) (Detec
 			}
 		}
 		schedule = append(schedule, edges[it].to)
-
-		runnerID, err := oracle.Reserve()
-		if err != nil {
-			return nil, fmt.Errorf("pradet could not reserve runner: %w", err)
-		}
-
-		results, err := oracle.Get(runnerID).Run(schedule)
-		go oracle.Release(runnerID)
+		results, err := oracle.RunSchedule(schedule)
 		if err != nil {
 			return nil, fmt.Errorf("pradet could not run schedule: %w", err)
 		}
-		log.Debugf("run tests %v -> %v", schedule, results)
+		log.Debugf("run tests %v -> %v", schedule, results.Results)
 
-		g.RemoveDependency(edges[it].to, edges[it].from)
+		g.removeDependency(edges[it].to, edges[it].from)
 
 		for i, test := range schedule {
 			if test == edges[it].from {
-				if !results[i] {
-					g.AddDependency(edges[it].from, edges[it].to)
+				if !results.Results[i] {
+					g.addDependency(edges[it].from, edges[it].to)
 				}
 				edges = append(edges[:it], edges[it+1:]...)
 				break
-			} else if !results[i] {
-				g.AddDependency(edges[it].from, edges[it].to)
+			} else if !results.Results[i] {
+				g.addDependency(edges[it].from, edges[it].to)
 				break
 			}
 		}
 
-		if it == len(edges) {
-			it = 0
+		if len(edges) == 0 {
+			break
 		}
 
-		it, deps = edgeSelectPraDet(g, edges, 0)
+		it, deps = edgeSelectPraDet(g, edges)
 	}
 
 	log.Debug("finished dependency detection algorithm")
+	g.transitiveReduction()
 
 	return g, nil
 }

@@ -4,8 +4,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"errors"
 	"github.com/pako-23/gtdd/internal/algorithms"
-	runner "github.com/pako-23/gtdd/internal/runner/compose-runner"
+	"github.com/pako-23/gtdd/internal/runner"
+	"github.com/pako-23/gtdd/internal/runner/compose-runner"
 	"github.com/pako-23/gtdd/internal/testsuite"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -27,9 +29,9 @@ built.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := args[0]
 
-			detector, err := algorithms.NewDependencyDetector(viper.GetString("strategy"))
-			if err != nil {
-				return err
+			detector := getDetector(viper.GetString("strategy"))
+			if detector == nil {
+				return errors.New("the dependency detection strategy does not exist")
 			}
 
 			suite, err := testsuite.FactoryTestSuite(path, viper.GetString("type"))
@@ -41,13 +43,12 @@ built.`,
 				return err
 			}
 
-			runners, err := runner.NewRunnerSet(&runner.RunnerSetConfig{
-				App:          filepath.Join(path, "docker-compose.yml"),
-				Driver:       viper.GetString("driver"),
-				Runners:      viper.GetUint("runners"),
-				TestSuite:    suite,
-				TestSuiteEnv: viper.GetStringSlice("env"),
-			})
+			runners, err := runner.NewRunnerSet(viper.GetUint("runners"),
+				compose_runner.ComposeRunnerBuilder,
+				compose_runner.WithAppDefinition(filepath.Join(path, "docker-compose.yml")),
+				compose_runner.WithEnv(viper.GetStringSlice("env")),
+				compose_runner.WithTestsuite(suite))
+
 			if err != nil {
 				return err
 			}
@@ -58,7 +59,7 @@ built.`,
 				}
 			}()
 
-			g, err := detector.FindDependencies(tests, runners)
+			g, err := detector(tests, runners)
 			if err != nil {
 				return err
 			}
@@ -83,4 +84,17 @@ built.`,
 	depsCommand.Flags().UintP("runners", "r", runner.DefaultSetSize, "The number of concurrent runners")
 
 	return depsCommand
+}
+
+func getDetector(strategy string) algorithms.DependencyDetector {
+	switch strategy {
+	case "pfast":
+		return algorithms.PFAST
+	case "pradet":
+		return algorithms.PraDet
+	case "mem-fast":
+		return algorithms.MEMFAST
+	default:
+		return nil
+	}
 }

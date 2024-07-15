@@ -2,16 +2,18 @@ package main
 
 import (
 	"fmt"
-	runner "github.com/pako-23/gtdd/internal/runner/compose-runner"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/pako-23/gtdd/internal/runner"
+	compose_runner "github.com/pako-23/gtdd/internal/runner/compose-runner"
 	"github.com/pako-23/gtdd/internal/testsuite"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"golang.org/x/exp/slices"
-	"path/filepath"
-	"strings"
-	"time"
 )
 
 type runResults struct {
@@ -44,13 +46,11 @@ will run the tests in the original order.`,
 				return err
 			}
 
-			runners, err := runner.NewRunnerSet(&runner.RunnerSetConfig{
-				App:          filepath.Join(path, "docker-compose.yml"),
-				Driver:       viper.GetString("driver"),
-				Runners:      viper.GetUint("runners"),
-				TestSuite:    suite,
-				TestSuiteEnv: viper.GetStringSlice("env"),
-			})
+			runners, err := runner.NewRunnerSet(viper.GetUint("runners"),
+				compose_runner.ComposeRunnerBuilder,
+				compose_runner.WithAppDefinition(filepath.Join(path, "docker-compose.yml")),
+				compose_runner.WithEnv(viper.GetStringSlice("env")),
+				compose_runner.WithTestsuite(suite))
 			if err != nil {
 				return err
 			}
@@ -113,24 +113,13 @@ will run the tests in the original order.`,
 }
 
 // runSchedule
-func runSchedule(schedule []string, errCh chan error, resultsCh chan runResults, r *runner.RunnerSet) {
-	runnerID, err := r.Reserve()
-	if err != nil {
-		if err != runner.ErrNoRunner {
-			errCh <- err
-		}
-
-		return
-	}
-	defer func() { go r.Release(runnerID) }()
-	start := time.Now()
-
-	out, err := r.Get(runnerID).Run(schedule)
+func runSchedule[T runner.Runner](schedule []string, errCh chan error, resultsCh chan runResults, r *runner.RunnerSet[T]) {
+	out, err := r.RunSchedule(schedule)
 	if err != nil {
 		errCh <- err
 
 		return
 	}
 
-	resultsCh <- runResults{schedule: schedule, results: out, time: time.Since(start)}
+	resultsCh <- runResults{schedule: schedule, results: out.Results, time: out.RunningTime}
 }

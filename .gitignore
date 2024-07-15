@@ -19,8 +19,8 @@
 
 # Go workspace file
 go.work
-.vagrant
-./gtdd
+.vagrant/
+gtdd
 experiments
 *.html
 *.cov

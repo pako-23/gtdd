@@ -6,12 +6,13 @@ import (
 	"strings"
 
 	"github.com/pako-23/gtdd/internal/docker"
+	"github.com/pako-23/gtdd/internal/runner"
 	"github.com/pako-23/gtdd/internal/testsuite"
 	log "github.com/sirupsen/logrus"
 )
 
 // Runner represents an environment where a test suite can be run.
-type Runner struct {
+type ComposeRunner struct {
 	// The running containers for the application against which the test
 	// suite is being run.
 	app docker.AppInstance
@@ -29,83 +30,99 @@ type Runner struct {
 	testSuite testsuite.TestSuite
 	// The environment variables that should be passed to the container running
 	// the test suite.
-	testSuiteEnv []string
+	translatedEnv []string
+
+	env []string
 
 	client *docker.Client
 }
 
-// RunnerConfig represents the configurations needed to create a runner.
-type RunnerConfig struct {
-	// The configuration coming from the initialization of a group of runners.
-	RunnerSetConfig
-	// The name to give to the runner.
-	Name string
-}
-
 // NewRunner creates a new runner based on the runner configuration.
 // If there is an error, it is returned.
-func NewRunner(config *RunnerConfig) (*Runner, error) {
+func ComposeRunnerBuilder(name string, options ...runner.RunnerOption[*ComposeRunner]) (*ComposeRunner, error) {
 	client, err := docker.NewClient()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create client to create runner %s: %w", config.Name, err)
+		return nil, fmt.Errorf("failed to create client to create runner %s: %w", name, err)
 	}
 
-	net, err := client.NetworkCreate(config.Name)
+	net, err := client.NetworkCreate(name)
 	if err != nil {
 		client.Close()
 		return nil, fmt.Errorf("failed to create network: %w", err)
 	}
-	log.Debugf("[runner=%s] successfully created network with ID %s", config.Name, net)
+	log.Debugf("[runner=%s] successfully created network with ID %s", name, net)
 
-	app, err := client.NewApp(config.App)
-	if err != nil {
-		client.Close()
-
-		return nil, err
+	runner := &ComposeRunner{
+		client:  client,
+		network: net,
+		app:     docker.AppInstance{},
+		name:    name,
 	}
 
-	runner := &Runner{
-		app:           docker.AppInstance{},
-		appDefinition: app,
-		client:        client,
-		name:          config.Name,
-		network:       net,
-		testSuite:     config.TestSuite,
-	}
-
-	if config.Driver == "" {
-		runner.testSuiteEnv = runner.translateEnv(config.TestSuiteEnv)
-
-		return runner, nil
-	}
-
-	driverDefinition, err := client.NewApp(config.Driver)
-	if err != nil {
-		return nil, err
-	}
-
-	driver, err := client.Run(driverDefinition, docker.RunOptions{
-		Prefix:   runner.name,
-		Networks: []string{net},
-	})
-	if err != nil {
-		client.Close()
-		if netErr := client.NetworkRemove(net); netErr != nil {
-			log.Error(netErr)
+	for _, option := range options {
+		if err := option(runner); err != nil {
+			// TODO: handle errors
+			return nil, err
 		}
-		return nil, err
+
 	}
-	runner.driver = driver
-	runner.testSuiteEnv = runner.translateEnv(config.TestSuiteEnv)
-	log.Debugf("[runner=%s] successfully initialized", config.Name)
+
+	runner.translatedEnv = runner.translateEnv(runner.env)
 
 	return runner, nil
+}
+
+func WithAppDefinition(path string) func(*ComposeRunner) error {
+	return func(runner *ComposeRunner) error {
+		app, err := runner.client.NewApp(path)
+		if err != nil {
+			return err
+		}
+
+		runner.appDefinition = app
+		return nil
+	}
+
+}
+
+func WithDriverDefinition(path string) func(*ComposeRunner) error {
+	return func(runner *ComposeRunner) error {
+		definition, err := runner.client.NewApp(path)
+		if err != nil {
+			return err
+		}
+
+		driver, err := runner.client.Run(definition, docker.RunOptions{
+			Prefix:   runner.name,
+			Networks: []string{runner.network}})
+		if err != nil {
+			return err
+		}
+
+		runner.driver = driver
+
+		return nil
+	}
+}
+
+func WithEnv(env []string) func(*ComposeRunner) error {
+	return func(runner *ComposeRunner) error {
+		runner.env = env
+		return nil
+	}
+}
+
+func WithTestsuite(suite testsuite.TestSuite) func(*ComposeRunner) error {
+	return func(runner *ComposeRunner) error {
+		runner.testSuite = suite
+		return nil
+	}
 }
 
 // translateEnv translates each hostname in the value of each environment
 // variable based on the container names created by the runner. The resulting
 // environment variables are returned.
-func (r *Runner) translateEnv(variables []string) []string {
+func (r *ComposeRunner) translateEnv(variables []string) []string {
 	newEnv := make([]string, len(variables))
 
 	hosts := make([]string, 0, len(r.appDefinition)+len(r.driver))
@@ -132,7 +149,7 @@ func (r *Runner) translateEnv(variables []string) []string {
 // ResetApplication deletes the containers related to the currently running
 // application and sets up the containers to run a provided application.
 // If there is an error in the process, it is returned.
-func (r *Runner) ResetApplication() error {
+func (r *ComposeRunner) ResetApplication() error {
 	if err := r.client.Delete(r.app); err != nil {
 		return fmt.Errorf("app deletion failed in app reset:  %w", err)
 	}
@@ -152,7 +169,7 @@ func (r *Runner) ResetApplication() error {
 
 // Delete releases all the resources allocated for the runner. If there is an
 // error in the process, it is returned.
-func (r *Runner) Delete() error {
+func (r *ComposeRunner) Delete() error {
 
 	if err := r.client.Delete(r.driver); err != nil {
 		return fmt.Errorf("driver deletion failed when deleting runner %s: %w", r.name, err)
@@ -176,10 +193,10 @@ func (r *Runner) Delete() error {
 // Run runs a test schedule on this runner. The test results are represented
 // as booleans. If the test is passed, the value is true; otherwise it is
 // false. If there is any error, it is returned.
-func (r *Runner) Run(tests []string) ([]bool, error) {
+func (r *ComposeRunner) Run(tests []string) ([]bool, error) {
 	results, err := r.testSuite.Run(&testsuite.RunConfig{
 		Name:        fmt.Sprintf("%s-testsuite", r.name),
-		Env:         r.testSuiteEnv,
+		Env:         r.translatedEnv,
 		Tests:       tests,
 		StartConfig: &docker.RunOptions{Networks: []string{r.network}},
 	})
