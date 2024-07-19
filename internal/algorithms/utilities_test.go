@@ -11,10 +11,11 @@ import (
 
 type mockRunner struct {
 	dependencyMap map[string][][]string
+	id            string
 }
 
-func newMockRunnerBuilder(name string, options ...runner.RunnerOption[*mockRunner]) (*mockRunner, error) {
-	runner := &mockRunner{dependencyMap: map[string][][]string{}}
+func newMockRunnerBuilder(id string, options ...runner.RunnerOption[*mockRunner]) (*mockRunner, error) {
+	runner := &mockRunner{dependencyMap: map[string][][]string{}, id: id}
 
 	for _, option := range options {
 		if err := option(runner); err != nil {
@@ -38,6 +39,10 @@ func (m *mockRunner) ResetApplication() error {
 
 func (m *mockRunner) Delete() error {
 	return nil
+}
+
+func (m *mockRunner) Id() string {
+	return m.id
 }
 
 func (m *mockRunner) Run(tests []string) ([]bool, error) {
@@ -199,6 +204,31 @@ func testOrDependencies(t *testing.T, algo algorithms.DependencyDetector) {
 					"test3": {"test2": {}},
 					"test4": {"test3": {}},
 					"test5": {"test1": {}},
+				}),
+			},
+		},
+		{
+			testsuite: []string{"test1", "test2", "test3", "test4", "test5"},
+			dependencies: map[string][][]string{
+				"test5": {
+					{"test2", "test4"},
+					{"test1", "test3"},
+				},
+			},
+			expected: []algorithms.DependencyGraph{
+				algorithms.DependencyGraph(map[string]map[string]struct{}{
+					"test1": {},
+					"test2": {},
+					"test3": {},
+					"test4": {},
+					"test5": {"test1": {}, "test3": {}},
+				}),
+				algorithms.DependencyGraph(map[string]map[string]struct{}{
+					"test1": {},
+					"test2": {},
+					"test3": {},
+					"test4": {},
+					"test5": {"test2": {}, "test4": {}},
 				}),
 			},
 		},

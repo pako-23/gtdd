@@ -20,21 +20,12 @@ type edge struct {
 	to   string
 }
 
-// edgeChannelData represents the edge data exchanged on channels when running
-// concurrent operations.
-type edgeChannelData struct {
-	// The data regarding the edge.
-	edge
-	// The possible errors.
-	err error
-}
-
 // DependencyGraph represents the graph encoding the dependencies between the
 // tests of a test suite. In the graph, each node is a test of the test suite
 // and each edge represents the dependency relationship between the tests.
 type DependencyGraph map[string]map[string]struct{}
 
-type DependencyDetector func([]string, *runner.RunnerSet[runner.Runner]) (DependencyGraph, error)
+type DependencyDetector func([]string, *runner.RunnerSet) (DependencyGraph, error)
 
 // NewDependencyGraph returns a DependencyGraph without any edges from a
 // list of tests.

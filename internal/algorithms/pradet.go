@@ -33,7 +33,7 @@ func edgeSelectPraDet(g DependencyGraph, edges []edge) (int, map[string]struct{}
 	return it, deps
 }
 
-func PraDet(tests []string, oracle *runner.RunnerSet[runner.Runner]) (DependencyGraph, error) {
+func PraDet(tests []string, oracle *runner.RunnerSet) (DependencyGraph, error) {
 	g := NewDependencyGraph(tests)
 	edges := []edge{}
 

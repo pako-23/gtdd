@@ -1,64 +1,11 @@
 package algorithms
 
 import (
-	"context"
-	"sync"
-
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
 	"github.com/pako-23/gtdd/internal/runner"
 )
-
-// iterationPFAST performs one iteration of the pfast strategy to detect
-// dependencies between the tests of a test suite. The strategy works
-// as follows:
-//
-//   - Remove one test from the original test suite.
-//   - Run the resulting schedule.
-//   - If some test fails add one edge in the graph of tests dependencies
-//     from the failed test and the test initially excluded. Then, proceed with
-//     a new iteration where the failed test is also excluded. If no test
-//     failed, do nothing.
-func iterationPFAST(ctx context.Context, excludedTest, failedTest int, previousSchedule []string, ch chan<- edgeChannelData) {
-	var (
-		n       = ctx.Value("wait-group").(*sync.WaitGroup)
-		runners = ctx.Value("runners").(*runner.RunnerSet[runner.Runner])
-		tests   = ctx.Value("tests").([]string)
-	)
-
-	defer n.Done()
-	schedule := remove(previousSchedule, failedTest)
-	results, err := runners.RunSchedule(schedule)
-	if err != nil {
-		ch <- edgeChannelData{edge: edge{from: "", to: ""}, err: err}
-
-		return
-	}
-	log.Debugf("run tests %v -> %v", schedule, results.Results)
-
-	if firstFailed := slices.Index(results.Results, false); firstFailed == -1 {
-		return
-	} else if firstFailed < excludedTest {
-		n.Add(1)
-		go iterationPFAST(ctx, excludedTest, failedTest, previousSchedule, ch)
-	} else if firstFailed != -1 {
-		ch <- edgeChannelData{
-			edge: edge{
-				from: schedule[firstFailed],
-				to:   tests[excludedTest],
-			},
-			err: nil,
-		}
-
-		if len(schedule) == 1 {
-			return
-		}
-
-		n.Add(1)
-		go iterationPFAST(ctx, excludedTest, firstFailed, schedule, ch)
-	}
-}
 
 func findPossibleTargets(tests []string, g *DependencyGraph) map[string]int {
 	targets := map[string]int{}
@@ -95,14 +42,13 @@ func selectTarget(targets map[string]int) string {
 	return res
 }
 
-func detectFailingTests(ctx context.Context, schedules [][]string) (map[string]map[int]struct{}, error) {
+func detectFailingTests(runners *runner.RunnerSet, schedules [][]string) (map[string]map[int]struct{}, error) {
 	type results struct {
 		results  []bool
 		schedule int
 		err      error
 	}
 
-	runners := ctx.Value("runners").(*runner.RunnerSet[runner.Runner])
 	ch := make(chan results)
 	notPassing := map[string]map[int]struct{}{}
 
@@ -158,12 +104,7 @@ func solvedSchedule(notPassingTests map[string]map[int]struct{}, passedSchedules
 	return true
 }
 
-func cleanAddedEdges(ctx context.Context, i int, test string, g *DependencyGraph) error {
-	var (
-		runners = ctx.Value("runners").(*runner.RunnerSet[runner.Runner])
-		tests   = ctx.Value("tests").([]string)
-	)
-
+func cleanAddedEdges(tests []string, runners *runner.RunnerSet, i int, test string, g *DependencyGraph) error {
 	targets := findPossibleTargets(tests[:i], g)
 	for target := range targets {
 		log.Infof("recovery add edge %s -> %s", test, target)
@@ -198,14 +139,9 @@ func cleanAddedEdges(ctx context.Context, i int, test string, g *DependencyGraph
 	return nil
 }
 
-func recoveryPFAST(ctx context.Context, g *DependencyGraph) error {
-	var (
-		runners = ctx.Value("runners").(*runner.RunnerSet[runner.Runner])
-		tests   = ctx.Value("tests").([]string)
-	)
-
+func recoveryPFAST(tests []string, runners *runner.RunnerSet, g *DependencyGraph) error {
 	schedules := g.GetSchedules(tests)
-	notPassingTests, err := detectFailingTests(ctx, schedules)
+	notPassingTests, err := detectFailingTests(runners, schedules)
 	if err != nil {
 		return err
 	}
@@ -219,7 +155,7 @@ func recoveryPFAST(ctx context.Context, g *DependencyGraph) error {
 			continue
 		}
 
-		if err := cleanAddedEdges(ctx, i, test, g); err != nil {
+		if err := cleanAddedEdges(tests, runners, i, test, g); err != nil {
 			return err
 		}
 
@@ -256,44 +192,90 @@ func recoveryPFAST(ctx context.Context, g *DependencyGraph) error {
 	return nil
 }
 
-// PFAST implements the pfast strategy to detect dependencies between
-// the tests into a given test suite. If there is any error, it is returned.
-func PFAST(tests []string, r *runner.RunnerSet[runner.Runner]) (DependencyGraph, error) {
-	ch := make(chan edgeChannelData)
-	n := sync.WaitGroup{}
+func PFAST(tests []string, r *runner.RunnerSet) (DependencyGraph, error) {
+	type result struct {
+		edge
+		err error
+	}
+
+	type job struct {
+		schedule []string
+		toRemove int
+		excluded int
+	}
+
+	results := make(chan result)
+	jobs := make(chan job, r.Size()+1)
+	done := make(chan struct{})
 
 	g := NewDependencyGraph(tests)
 
-	log.Debug("starting dependency detection algorithm")
+	// start workers
+	for i := 0; i < r.Size()+1; i++ {
+		go func() {
+			for job := range jobs {
+				job.schedule = remove(job.schedule, job.toRemove)
 
-	ctx := context.WithValue(
-		context.WithValue(
-			context.WithValue(
-				context.Background(), "runners", r,
-			),
-			"wait-group", &n,
-		), "tests", tests,
-	)
+				for {
+					out, err := r.RunSchedule(job.schedule)
+					if err != nil {
+						results <- result{edge: edge{from: "", to: ""}, err: err}
 
-	for i := 0; i < len(tests)-1; i++ {
-		n.Add(1)
+						return
+					}
+					log.Debugf("run tests %v -> %v", job.schedule, out.Results)
 
-		go iterationPFAST(ctx, i, i, tests, ch)
+					if firstFailed := slices.Index(out.Results, false); firstFailed == -1 {
+						done <- struct{}{}
+						break
+					} else if firstFailed < job.excluded {
+						continue
+					} else if firstFailed != -1 {
+						results <- result{
+							edge: edge{
+								from: job.schedule[firstFailed],
+								to:   tests[job.excluded],
+							},
+							err: nil,
+						}
+
+						if len(job.schedule) != 1 {
+							job.toRemove = firstFailed
+							jobs <- job
+						} else {
+							done <- struct{}{}
+						}
+						break
+					}
+				}
+			}
+		}()
 	}
 
+	log.Debug("starting dependency detection algorithm")
 	go func() {
-		n.Wait()
-		close(ch)
+		for i := 0; i < len(tests)-1; i++ {
+			jobs <- job{schedule: tests, toRemove: i, excluded: i}
+		}
 	}()
 
-	for result := range ch {
-		if result.err != nil {
-			return nil, result.err
-		}
-		g.addDependency(result.from, result.to)
-	}
+	jobsNum := len(tests) - 1
 
-	if err := recoveryPFAST(ctx, &g); err != nil {
+	for jobsNum > 0 {
+		select {
+		case res := <-results:
+			if res.err != nil {
+				return nil, res.err
+			}
+
+			g.addDependency(res.from, res.to)
+		case <-done:
+			jobsNum--
+		}
+	}
+	close(jobs)
+
+	if err := recoveryPFAST(tests, r, &g); err != nil {
 		return nil, err
 	}
 

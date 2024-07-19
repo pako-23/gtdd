@@ -11,7 +11,10 @@ else ifneq ($(shell which docker 2>/dev/null),)
 endif
 
 .PHONY: all
-all:
+all: $(PROG_NAME)
+
+
+$(PROG_NAME): $(shell find internal/ -name *.go) $(shell find cmd/gtdd/ -name *.go)
 	GOOS=$(OS) GOARCH=$(ARCH) go build -o $(PROG_NAME) ./cmd/gtdd
 
 .PHONY: clean

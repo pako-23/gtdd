@@ -12,7 +12,6 @@ import (
 )
 
 func newBuildCmd() *cobra.Command {
-
 	buildCommand := &cobra.Command{
 		Use:   "build [flags] [path to testsuite]",
 		Short: "Builds the artifacts needed to run a test suite",

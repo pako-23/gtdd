@@ -46,11 +46,19 @@ will run the tests in the original order.`,
 				return err
 			}
 
-			runners, err := runner.NewRunnerSet(viper.GetUint("runners"),
-				compose_runner.ComposeRunnerBuilder,
+			options := []runner.RunnerOption[*compose_runner.ComposeRunner]{
 				compose_runner.WithAppDefinition(filepath.Join(path, "docker-compose.yml")),
 				compose_runner.WithEnv(viper.GetStringSlice("env")),
-				compose_runner.WithTestsuite(suite))
+				compose_runner.WithTestsuite(suite),
+			}
+
+			if viper.GetString("driver") != "" {
+				options = append(options,
+					compose_runner.WithDriverDefinition(viper.GetString("driver")))
+			}
+
+			runners, err := runner.NewRunnerSet(viper.GetInt("runners"),
+				compose_runner.ComposeRunnerBuilder, options...)
 			if err != nil {
 				return err
 			}
@@ -113,7 +121,7 @@ will run the tests in the original order.`,
 }
 
 // runSchedule
-func runSchedule[T runner.Runner](schedule []string, errCh chan error, resultsCh chan runResults, r *runner.RunnerSet[T]) {
+func runSchedule(schedule []string, errCh chan error, resultsCh chan runResults, r *runner.RunnerSet) {
 	out, err := r.RunSchedule(schedule)
 	if err != nil {
 		errCh <- err
