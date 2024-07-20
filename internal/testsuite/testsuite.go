@@ -62,6 +62,8 @@ func FactoryTestSuite(path, testSuiteType string) (TestSuite, error) {
 	switch testSuiteType {
 	case "java-selenium":
 		return &JavaSeleniumTestSuite{Image: filepath.Base(absolutePath)}, nil
+	case "junit":
+		return &JunitTestSuite{Image: filepath.Base(absolutePath)}, nil
 	default:
 		return nil, ErrNotSupportedTestSuiteType
 	}

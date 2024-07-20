@@ -1,10 +1,10 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 
-	"errors"
 	"github.com/pako-23/gtdd/internal/algorithms"
 	"github.com/pako-23/gtdd/internal/runner"
 	"github.com/pako-23/gtdd/internal/runner/compose-runner"

@@ -1,11 +1,18 @@
-VM_CPUS = 10
-VM_MEMORY = 14336
+VM_CPUS = 6
+VM_MEMORY = 8192
 
 Vagrant.configure('2') do |config|
-    $script = <<-SHELL
+  $script = <<-SHELL
+        cd /etc/apt/sources.list.d/
+        wget http://www.mirbsd.org/~tg/Debs/sources.txt/wtf-bookworm.sources
+        cd /opt
+        wget -O- https://archive.apache.org/dist/maven/maven-3/3.6.1/binaries/apache-maven-3.6.1-bin.tar.gz |
+sudo tar -xzv
+        echo 'export PATH="$PATH:/opt/apache-maven-3.6.1/bin/"' >> /etc/profile
+        echo 'export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64' >> /etc/profile
         apt update
         apt upgrade -y
-        apt-get install -y ca-certificates curl gnupg make
+        apt-get install -y ca-certificates curl gnupg make openjdk-8-jdk
 	cd /tmp
 	wget https://go.dev/dl/go1.22.1.linux-amd64.tar.gz
 	tar -C /usr/local -xzf go1.22.1.linux-amd64.tar.gz

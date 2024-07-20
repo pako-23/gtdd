@@ -2,13 +2,15 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+
 	"github.com/pako-23/gtdd/internal/docker"
 	"github.com/pako-23/gtdd/internal/testsuite"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"golang.org/x/sync/errgroup"
-	"path/filepath"
 )
 
 func newBuildCmd() *cobra.Command {
@@ -26,19 +28,23 @@ func newBuildCmd() *cobra.Command {
 			var waitgroup errgroup.Group
 
 			waitgroup.Go(func() error {
-				client, err := docker.NewClient()
-				if err != nil {
+				composePath := filepath.Join(path, "docker-compose.yml")
+				if _, err := os.Stat(composePath); os.IsNotExist(err) {
 					return nil
+				} else if err != nil {
+					return err
 				}
-				defer client.Close()
 
-				_, err = client.NewApp(filepath.Join(path, "docker-compose.yml"))
+				client, err := docker.NewClient()
 				if err != nil {
 					return err
 				}
-				return nil
+				defer client.Close()
 
+				_, err = client.NewApp(composePath)
+				return err
 			})
+
 			waitgroup.Go(func() error {
 				suite, err := testsuite.FactoryTestSuite(path, viper.GetString("type"))
 				if err != nil {

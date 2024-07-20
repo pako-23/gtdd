@@ -97,7 +97,7 @@ func (j *JavaSeleniumTestSuite) Run(config *RunConfig) (results []bool, err erro
 	log.Debugf("successfully obtained logs from java test suite container %s", instance["testsuite"])
 	log.Debugf("container logs: %s", logs)
 
-	result := []bool{}
+	result := make([]bool, 0, len(config.Tests))
 	r, _ := regexp.Compile("[a-zA-Z._0-9]+ (0|1)")
 	lines := strings.Split(strings.Trim(logs, "\n"), "\n")
 	for _, line := range lines[len(lines)-len(config.Tests):] {
