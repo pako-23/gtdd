@@ -44,9 +44,16 @@ built.`,
 			}
 
 			options := []runner.RunnerOption[*compose_runner.ComposeRunner]{
-				compose_runner.WithAppDefinition(filepath.Join(path, "docker-compose.yml")),
 				compose_runner.WithEnv(viper.GetStringSlice("env")),
 				compose_runner.WithTestsuite(suite),
+			}
+
+			appComposePath := filepath.Join(path, "docker-compose.yml")
+			if _, err := os.Stat(appComposePath); err == nil {
+				options = append(options,
+					compose_runner.WithAppDefinition(appComposePath))
+			} else if !os.IsNotExist(err) {
+				return err
 			}
 
 			if viper.GetString("driver") != "" {

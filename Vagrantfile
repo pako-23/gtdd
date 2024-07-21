@@ -1,5 +1,5 @@
-VM_CPUS = 6
-VM_MEMORY = 8192
+VM_CPUS = 10
+VM_MEMORY = 14336
 
 Vagrant.configure('2') do |config|
   $script = <<-SHELL
