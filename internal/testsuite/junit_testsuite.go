@@ -9,8 +9,16 @@ import (
 )
 
 const listTestsScript = `
-find target/ -name TEST*.xml -exec grep classname {} \\; | awk -F'\"' '{print \$4\"#\"\$2}'
-`
+find target/ -name TEST*.xml -exec grep testcase {} \\; | awk -F'\"' '{
+    for (i = 1; i <= NF; i++) {
+      if (\$i ~ /classname=/) {
+         classname=\$(i+1)
+      } else if (\$i ~ /name=/) {
+         name=\$(i+1)
+      }
+    }
+    if (classname && name) { print classname \"#\" name }
+  }'`
 
 const junitRunner = `import org.junit.runner.JUnitCore;
 import org.junit.runner.Request;
@@ -52,13 +60,14 @@ const dockerFile = `FROM maven:3.6.1-jdk-8
 COPY %s/ /app
 WORKDIR /app
 
+RUN curl -O https://repo1.maven.org/maven2/junit/junit/4.12/junit-4.12.jar
 RUN mvn test
 RUN mvn dependency:build-classpath -DincludeScope=test -Dmdep.outputFile=cp.txt
 RUN echo "#\!/bin/sh\n%s"  > ./list_tests.sh
 RUN chmod +x list_tests.sh
 RUN echo '%s' > CustomRunner.java
-RUN javac -cp "$(cat cp.txt):." CustomRunner.java
-RUN echo "#\!/bin/sh\n\njava -cp \"$(cat cp.txt):/app/target/test-classes/:/app/target/classes/:\" CustomRunner \"\$@\" >/dev/null\ncat summary.txt" > run_tests.sh
+RUN javac -cp "/app/junit-4.12.jar:$(cat cp.txt):" CustomRunner.java
+RUN echo "#\!/bin/sh\n\njava -cp \"/app/junit-4.12.jar:$(cat cp.txt):/app/target/test-classes/:/app/target/classes/:\" CustomRunner \"\$@\" >/dev/null\ncat summary.txt" > run_tests.sh
 RUN chmod +x run_tests.sh
 `
 

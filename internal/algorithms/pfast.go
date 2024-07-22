@@ -215,7 +215,6 @@ func PFAST(tests []string, r *runner.RunnerSet) (DependencyGraph, error) {
 		go func() {
 			for job := range jobs {
 				job.schedule = remove(job.schedule, job.toRemove)
-
 				for {
 					out, err := r.RunSchedule(job.schedule)
 					if err != nil {

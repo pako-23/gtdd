@@ -44,7 +44,7 @@ endif
 
 .PHONY: check
 check:
-	go test -race -coverprofile=coverage.cov ./...
+	go test -covermode=atomic -race -coverprofile=coverage.cov ./...
 	go tool cover -html=coverage.cov -o coverage.html
 
 

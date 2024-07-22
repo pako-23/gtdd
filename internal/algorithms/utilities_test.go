@@ -50,7 +50,7 @@ func (m *mockRunner) Run(tests []string) ([]bool, error) {
 
 	for i := range tests {
 		deps, ok := m.dependencyMap[tests[i]]
-		if !ok {
+		if !ok || len(deps) == 0 {
 			results[i] = true
 			continue
 		}
@@ -68,13 +68,11 @@ func (m *mockRunner) Run(tests []string) ([]bool, error) {
 				results[i] = true
 				break
 			}
-
 		}
 
 		if !results[i] {
 			break
 		}
-
 	}
 
 	return results, nil
@@ -147,10 +145,281 @@ func testExistingDependencies(t *testing.T, algo algorithms.DependencyDetector) 
 				"test5": {"test1": {}, "test2": {}, "test3": {}, "test4": {}},
 			}),
 		},
+		{
+			testsuite: []string{
+				"tests.AddressBookAddAddressBookTest",
+				"tests.AddressBookSearchAddressBookNameTest",
+				"tests.AddressBookSearchAddressBookEmailTest",
+				"tests.AddressBookAddGroupTest",
+				"tests.AddressBookAssignToGroupTest",
+				"tests.AddressBookSearchByGroupTest",
+
+				"tests.AddressBookCheckBirthdayInfoTest",
+				"tests.AddressBookCheckAddressBookTest",
+				"tests.AddressBookPrintAddressBookTest",
+				"tests.AddressBookEditAddressBookTest",
+				"tests.AddressBookEditGroupTest",
+				"tests.AddressBookRemoveFromGroupTest",
+				"tests.AddressBookRemoveGroupTest",
+				"tests.AddressBookRemoveAddressBookTest",
+				"tests.AddressBookAddMultipleAddressBookTest",
+				"tests.AddressBookSearchMultipleAddressBookNameTest",
+				"tests.AddressBookAddMultipleGroupsTest",
+				"tests.AddressBookAssignToMultipleGroupsTest",
+				"tests.AddressBookSearchByMultipleGroupsTest",
+				"tests.AddressBookCheckMultipleBirthdaysInfoTest",
+				"tests.AddressBookCheckMultipleAddressBookTest",
+				"tests.AddressBookPrintMultipleAddressBookTest",
+				"tests.AddressBookEditMultipleAddressBookTest",
+				"tests.AddressBookEditMultipleGroupsTest",
+				"tests.AddressBookRemoveFromMultipleGroupsTest",
+				"tests.AddressBookRemoveMultipleGroupsTest",
+				"tests.AddressBookRemoveMultipleAddressBookTest",
+			},
+			dependencies: map[string][][]string{
+				"tests.AddressBookAddMultipleAddressBookTest": {
+					{
+						"tests.AddressBookAddAddressBookTest",
+						"tests.AddressBookRemoveAddressBookTest",
+					},
+				},
+				"tests.AddressBookAssignToGroupTest": {
+					{"tests.AddressBookAddAddressBookTest"},
+				},
+				"tests.AddressBookAssignToMultipleGroupsTest": {
+					{
+						"tests.AddressBookAddAddressBookTest",
+						"tests.AddressBookRemoveAddressBookTest",
+						"tests.AddressBookAddMultipleAddressBookTest",
+						"tests.AddressBookAddMultipleGroupsTest",
+					},
+				},
+				"tests.AddressBookCheckAddressBookTest": {
+					{
+						"tests.AddressBookAddAddressBookTest",
+					},
+				},
+				"tests.AddressBookCheckBirthdayInfoTest": {
+					{
+						"tests.AddressBookAddAddressBookTest",
+					},
+				},
+				"tests.AddressBookCheckMultipleAddressBookTest": {
+					{
+						"tests.AddressBookAddAddressBookTest",
+						"tests.AddressBookRemoveAddressBookTest",
+						"tests.AddressBookAddMultipleAddressBookTest",
+					},
+				},
+				"tests.AddressBookCheckMultipleBirthdaysInfoTest": {
+					{
+						"tests.AddressBookAddAddressBookTest",
+						"tests.AddressBookRemoveAddressBookTest",
+						"tests.AddressBookAddMultipleAddressBookTest",
+					},
+				},
+				"tests.AddressBookEditAddressBookTest": {
+					{
+						"tests.AddressBookAddAddressBookTest",
+					},
+				},
+				"tests.AddressBookEditGroupTest": {
+					{
+						"tests.AddressBookAddGroupTest",
+					},
+				},
+				"tests.AddressBookEditMultipleAddressBookTest": {
+					{
+						"tests.AddressBookAddAddressBookTest",
+						"tests.AddressBookRemoveAddressBookTest",
+						"tests.AddressBookAddMultipleAddressBookTest",
+					},
+				},
+				"tests.AddressBookEditMultipleGroupsTest": {
+					{
+						"tests.AddressBookAddGroupTest",
+						"tests.AddressBookRemoveGroupTest",
+						"tests.AddressBookAddMultipleGroupsTest",
+					},
+				},
+				"tests.AddressBookPrintAddressBookTest": {
+					{
+						"tests.AddressBookAddAddressBookTest",
+					},
+				},
+				"tests.AddressBookPrintMultipleAddressBookTest": {
+					{
+						"tests.AddressBookAddAddressBookTest",
+						"tests.AddressBookRemoveAddressBookTest",
+						"tests.AddressBookAddMultipleAddressBookTest",
+					},
+				},
+				"tests.AddressBookRemoveAddressBookTest": {
+					{
+						"tests.AddressBookAddAddressBookTest",
+					},
+				},
+				"tests.AddressBookRemoveFromGroupTest": {
+					{
+						"tests.AddressBookAddAddressBookTest",
+						"tests.AddressBookAddGroupTest",
+						"tests.AddressBookAssignToGroupTest",
+						"tests.AddressBookEditGroupTest",
+					},
+				},
+				"tests.AddressBookRemoveFromMultipleGroupsTest": {
+					{
+						"tests.AddressBookAddAddressBookTest",
+						"tests.AddressBookAddGroupTest",
+						"tests.AddressBookRemoveGroupTest",
+						"tests.AddressBookRemoveAddressBookTest",
+						"tests.AddressBookAddMultipleAddressBookTest",
+						"tests.AddressBookAddMultipleGroupsTest",
+						"tests.AddressBookAssignToMultipleGroupsTest",
+						"tests.AddressBookEditMultipleGroupsTest",
+					},
+				},
+				"tests.AddressBookRemoveGroupTest": {
+					{
+						"tests.AddressBookAddGroupTest",
+					},
+				},
+				"tests.AddressBookRemoveMultipleAddressBookTest": {
+					{
+						"tests.AddressBookAddAddressBookTest",
+						"tests.AddressBookRemoveAddressBookTest",
+						"tests.AddressBookAddMultipleAddressBookTest",
+					},
+				},
+				"tests.AddressBookRemoveMultipleGroupsTest": {
+					{
+						"tests.AddressBookAddGroupTest",
+						"tests.AddressBookRemoveGroupTest",
+						"tests.AddressBookAddMultipleGroupsTest",
+					},
+				},
+				"tests.AddressBookSearchAddressBookEmailTest": {
+					{
+						"tests.AddressBookAddAddressBookTest",
+					},
+				},
+				"tests.AddressBookSearchAddressBookNameTest": {
+					{
+						"tests.AddressBookAddAddressBookTest",
+					},
+				},
+				"tests.AddressBookSearchByGroupTest": {
+					{
+						"tests.AddressBookAddAddressBookTest",
+						"tests.AddressBookAddGroupTest",
+						"tests.AddressBookAssignToGroupTest",
+					},
+				},
+				"tests.AddressBookSearchByMultipleGroupsTest": {
+					{
+						"tests.AddressBookAddAddressBookTest",
+						"tests.AddressBookRemoveAddressBookTest",
+						"tests.AddressBookAddMultipleAddressBookTest",
+						"tests.AddressBookAddMultipleGroupsTest",
+						"tests.AddressBookAssignToMultipleGroupsTest",
+					},
+				},
+				"tests.AddressBookSearchMultipleAddressBookNameTest": {
+					{
+						"tests.AddressBookAddAddressBookTest",
+						"tests.AddressBookRemoveAddressBookTest",
+						"tests.AddressBookAddMultipleAddressBookTest",
+					},
+				},
+			},
+			expected: algorithms.DependencyGraph(map[string]map[string]struct{}{
+				"tests.AddressBookAddAddressBookTest": {},
+				"tests.AddressBookAddGroupTest":       {},
+				"tests.AddressBookAddMultipleAddressBookTest": {
+					"tests.AddressBookRemoveAddressBookTest": {},
+				},
+				"tests.AddressBookAddMultipleGroupsTest": {},
+				"tests.AddressBookAssignToGroupTest": {
+					"tests.AddressBookAddAddressBookTest": {},
+				},
+				"tests.AddressBookAssignToMultipleGroupsTest": {
+					"tests.AddressBookAddMultipleGroupsTest":      {},
+					"tests.AddressBookAddMultipleAddressBookTest": {},
+				},
+				"tests.AddressBookCheckAddressBookTest": {
+					"tests.AddressBookAddAddressBookTest": {},
+				},
+				"tests.AddressBookCheckBirthdayInfoTest": {
+					"tests.AddressBookAddAddressBookTest": {},
+				},
+				"tests.AddressBookCheckMultipleAddressBookTest": {
+					"tests.AddressBookAddMultipleAddressBookTest": {},
+				},
+				"tests.AddressBookCheckMultipleBirthdaysInfoTest": {
+					"tests.AddressBookAddMultipleAddressBookTest": {},
+				},
+				"tests.AddressBookEditAddressBookTest": {
+					"tests.AddressBookAddAddressBookTest": {},
+				},
+				"tests.AddressBookEditGroupTest": {
+					"tests.AddressBookAddGroupTest": {},
+				},
+				"tests.AddressBookEditMultipleAddressBookTest": {
+					"tests.AddressBookAddMultipleAddressBookTest": {},
+				},
+				"tests.AddressBookEditMultipleGroupsTest": {
+					"tests.AddressBookAddMultipleGroupsTest": {},
+					"tests.AddressBookRemoveGroupTest":       {},
+				},
+				"tests.AddressBookPrintAddressBookTest": {
+					"tests.AddressBookAddAddressBookTest": {},
+				},
+				"tests.AddressBookPrintMultipleAddressBookTest": {
+					"tests.AddressBookAddMultipleAddressBookTest": {},
+				},
+				"tests.AddressBookRemoveAddressBookTest": {
+					"tests.AddressBookAddAddressBookTest": {},
+				},
+				"tests.AddressBookRemoveFromGroupTest": {
+					"tests.AddressBookEditGroupTest":     {},
+					"tests.AddressBookAssignToGroupTest": {},
+				},
+				"tests.AddressBookRemoveFromMultipleGroupsTest": {
+					"tests.AddressBookEditMultipleGroupsTest":     {},
+					"tests.AddressBookAssignToMultipleGroupsTest": {},
+				},
+				"tests.AddressBookRemoveGroupTest": {
+					"tests.AddressBookAddGroupTest": {},
+				},
+				"tests.AddressBookRemoveMultipleAddressBookTest": {
+					"tests.AddressBookAddMultipleAddressBookTest": {},
+				},
+				"tests.AddressBookRemoveMultipleGroupsTest": {
+					"tests.AddressBookRemoveGroupTest":       {},
+					"tests.AddressBookAddMultipleGroupsTest": {},
+				},
+				"tests.AddressBookSearchAddressBookEmailTest": {
+					"tests.AddressBookAddAddressBookTest": {},
+				},
+				"tests.AddressBookSearchAddressBookNameTest": {
+					"tests.AddressBookAddAddressBookTest": {},
+				},
+				"tests.AddressBookSearchByGroupTest": {
+					"tests.AddressBookAssignToGroupTest": {},
+					"tests.AddressBookAddGroupTest":      {},
+				},
+				"tests.AddressBookSearchByMultipleGroupsTest": {
+					"tests.AddressBookAssignToMultipleGroupsTest": {},
+				},
+				"tests.AddressBookSearchMultipleAddressBookNameTest": {
+					"tests.AddressBookAddMultipleAddressBookTest": {},
+				},
+			}),
+		},
 	}
 
 	for _, test := range tests {
-		runner, _ := runner.NewRunnerSet[*mockRunner](5,
+		runner, _ := runner.NewRunnerSet[*mockRunner](12,
 			newMockRunnerBuilder,
 			withDependencyMap(test.dependencies))
 		got, err := algo(test.testsuite, runner)

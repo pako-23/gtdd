@@ -26,7 +26,7 @@ func newState(tests []string, jobCh chan<- schedule, resultCh <-chan result) (*s
 		t = &state{
 			failed:   map[string]struct{}{},
 			revIndex: buildReverseIndex(tests),
-			table:    [][]schedule{{}},
+			table:    make([][]schedule, len(tests)),
 			graph:    NewDependencyGraph(tests),
 		}
 	)
@@ -50,31 +50,40 @@ func newState(tests []string, jobCh chan<- schedule, resultCh <-chan result) (*s
 		}
 	}
 
-	log.Infof("table: %v", t)
-	log.Infof("not passed: %v", t.failed)
-
 	return t, nil
 }
 
 func (t *state) uniqueInsert(s schedule) bool {
-	for _, stored := range t.table[len(s)-1] {
-		equal := true
+	if containSchedule(t.table[len(s)-1], s) {
+		return false
+	}
 
-		for i := range stored {
-			if stored[i] != s[i] {
-				equal = false
-				break
-			}
-		}
+	t.table[len(s)-1] = append(t.table[len(s)-1], s)
+	return true
+}
 
-		if equal {
+func (s *schedule) Equal(other schedule) bool {
+	if len(*s) != len(other) {
+		return false
+	}
+
+	for i, test := range *s {
+		if test != other[i] {
 			return false
 		}
 	}
 
-	t.table[len(s)-1] = append(t.table[len(s)-1], s)
-
 	return true
+}
+
+func containSchedule(schedules []schedule, s schedule) bool {
+	for _, item := range schedules {
+		if item.Equal(s) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func buildReverseIndex(tests []string) map[string]int {
@@ -87,7 +96,7 @@ func buildReverseIndex(tests []string) map[string]int {
 }
 
 func mergeSchedules(s1 schedule, s2 schedule, revIndex map[string]int) schedule {
-	result := schedule{}
+	result := make(schedule, 0, len(s1)+len(s2)+1)
 	i, j := 0, 0
 
 	for i < len(s1) && j < len(s2) {
@@ -98,6 +107,7 @@ func mergeSchedules(s1 schedule, s2 schedule, revIndex map[string]int) schedule 
 			result = append(result, s2[j])
 			j++
 		} else {
+			result = append(result, s1[i])
 			i++
 			j++
 		}
@@ -133,18 +143,7 @@ func workerMEMFAST(r *runner.RunnerSet, jobCh <-chan schedule, resultCh chan<- r
 	}
 }
 
-func appendMEMFAST(s *state, rank int, jobCh chan<- schedule, resultCh <-chan result) error {
-	schedules := make([]schedule, 0, len(s.failed)*len(s.table[rank-1]))
-
-	for test := range s.failed {
-		for _, seq := range s.table[rank-1] {
-			if s.revIndex[seq[len(seq)-1]] > s.revIndex[test] {
-				continue
-			}
-			schedules = append(schedules, append(seq, test))
-		}
-	}
-
+func appendMEMFAST(s *state, schedules []schedule, jobCh chan<- schedule, resultCh <-chan result) error {
 	go func() {
 		for _, schedule := range schedules {
 			jobCh <- schedule
@@ -158,13 +157,14 @@ func appendMEMFAST(s *state, rank int, jobCh chan<- schedule, resultCh <-chan re
 		}
 
 		if res.failedIndex == -1 {
+			rank := len(res.schedule) - 1
 			s.table[rank] = append(s.table[rank], res.schedule)
 			passedTest := res.schedule[rank]
 			if _, ok := s.failed[passedTest]; ok {
 				delete(s.failed, passedTest)
 				s.graph.addDependency(passedTest, res.schedule[len(res.schedule)-2])
+				log.Infof("done with test: %s, schedule: %v", res.schedule[len(res.schedule)-1], res.schedule)
 			}
-			log.Infof("done with test: %s", res.schedule[len(res.schedule)-1])
 		}
 	}
 
@@ -173,6 +173,7 @@ func appendMEMFAST(s *state, rank int, jobCh chan<- schedule, resultCh <-chan re
 
 func extensiveSearchMEMFAST(s *state, prefixLen int, jobCh chan<- schedule, resultCh <-chan result) error {
 	schedules := make([]schedule, 0, prefixLen*prefixLen)
+
 	for base := 1; base <= prefixLen/2; base++ {
 		for test := range s.failed {
 			for _, s1 := range s.table[base-1] {
@@ -185,25 +186,38 @@ func extensiveSearchMEMFAST(s *state, prefixLen int, jobCh chan<- schedule, resu
 						continue
 					}
 
-					mergedSchedule := mergeSchedules(s1, s2, s.revIndex)
-					if len(mergedSchedule) == 0 {
+					testSchedule := mergeSchedules(s1, s2, s.revIndex)
+
+					if len(testSchedule) == 0 {
 						continue
 					}
 
-					schedules = append(schedules, append(mergedSchedule, test))
+					testSchedule = append(testSchedule, test)
+					if !containSchedule(schedules, testSchedule) {
+						schedules = append(schedules, testSchedule)
+					}
 				}
-
 			}
 		}
 	}
-
-	log.Infof("schedules produced %v", schedules)
 
 	go func() {
 		for _, schedule := range schedules {
 			jobCh <- schedule
 		}
 	}()
+
+	passing := make([]schedule, 0, prefixLen*prefixLen*len(s.failed))
+	storeSchedules := func(prefix schedule) {
+		for item := range s.failed {
+			if item != prefix[len(prefix)-1] {
+				s := make(schedule, len(prefix)+1)
+				copy(s, prefix)
+				s[len(s)-1] = item
+				passing = append(passing, s)
+			}
+		}
+	}
 
 	for i := 0; i < len(schedules); i++ {
 		res := <-resultCh
@@ -213,11 +227,8 @@ func extensiveSearchMEMFAST(s *state, prefixLen int, jobCh chan<- schedule, resu
 
 		if res.failedIndex == -1 {
 			last := len(res.schedule) - 1
-			log.Infof("done bruteforce with test: %s, schedule %v",
-				res.schedule[last], res.schedule)
-
 			passedTest := res.schedule[last]
-			s.uniqueInsert(res.schedule[:len(res.schedule)-1])
+
 			if _, ok := s.failed[passedTest]; ok {
 				s.table[last] = append(s.table[last], res.schedule)
 				delete(s.failed, res.schedule[last])
@@ -225,10 +236,19 @@ func extensiveSearchMEMFAST(s *state, prefixLen int, jobCh chan<- schedule, resu
 				for i := 0; i < len(res.schedule)-1; i++ {
 					s.graph.addDependency(passedTest, res.schedule[i])
 				}
+
 			}
+
+			storeSchedules(res.schedule)
+			prefix := res.schedule[:len(res.schedule)-1]
+			s.uniqueInsert(prefix)
 		} else if res.failedIndex == len(res.schedule)-1 {
 			s.uniqueInsert(res.schedule[:len(res.schedule)-1])
 		}
+	}
+
+	if err := appendMEMFAST(s, passing, jobCh, resultCh); err != nil {
+		return err
 	}
 
 	return nil
@@ -251,8 +271,21 @@ func MEMFAST(tests []string, r *runner.RunnerSet) (DependencyGraph, error) {
 	}
 
 	for rank := 1; rank < len(tests); rank++ {
-		s.table = append(s.table, []schedule{})
-		if err := appendMEMFAST(s, rank, jobCh, resultCh); err != nil {
+		schedules := make([]schedule, 0, len(s.failed)*len(s.table[rank-1]))
+		for test := range s.failed {
+			for _, seq := range s.table[rank-1] {
+				if s.revIndex[seq[len(seq)-1]] > s.revIndex[test] {
+					continue
+				}
+
+				newSchedule := make(schedule, len(seq)+1)
+				copy(newSchedule, seq)
+				newSchedule[len(newSchedule)-1] = test
+				schedules = append(schedules, newSchedule)
+			}
+		}
+
+		if err := appendMEMFAST(s, schedules, jobCh, resultCh); err != nil {
 			close(jobCh)
 			close(resultCh)
 			return nil, err
@@ -261,12 +294,11 @@ func MEMFAST(tests []string, r *runner.RunnerSet) (DependencyGraph, error) {
 		if len(s.failed) == 0 {
 			break
 		} else if _, ok := s.failed[tests[rank]]; !ok {
-			log.Infof("finished with rank %d, size of not passed: %d", rank, len(s.failed))
+			log.Infof("done with rank %d, tests not passed are: %d", rank, len(s.failed))
 			continue
 		}
 
-		log.Info("starting brute force")
-
+		log.Debugf("bruteforce test: %s started", tests[rank])
 		for prefixLen := 2; prefixLen <= rank; prefixLen++ {
 			if err := extensiveSearchMEMFAST(s, prefixLen, jobCh, resultCh); err != nil {
 				close(jobCh)
@@ -283,7 +315,6 @@ func MEMFAST(tests []string, r *runner.RunnerSet) (DependencyGraph, error) {
 			log.Warnf("issue with test: %s", tests[rank])
 		}
 
-		log.Infof("finished on rank %d, size of not passed: %d, table: %v", rank, len(s.failed), s)
 	}
 	log.Info("finished dependency detection algorithm")
 

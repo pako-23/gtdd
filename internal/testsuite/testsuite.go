@@ -9,6 +9,7 @@ package testsuite
 import (
 	"errors"
 	"path/filepath"
+	"strings"
 
 	"github.com/pako-23/gtdd/internal/docker"
 )
@@ -61,9 +62,9 @@ func FactoryTestSuite(path, testSuiteType string) (TestSuite, error) {
 
 	switch testSuiteType {
 	case "java-selenium":
-		return &JavaSeleniumTestSuite{Image: filepath.Base(absolutePath)}, nil
+		return &JavaSeleniumTestSuite{Image: strings.ToLower(filepath.Base(absolutePath))}, nil
 	case "junit":
-		return &JunitTestSuite{Image: filepath.Base(absolutePath)}, nil
+		return &JunitTestSuite{Image: strings.ToLower(filepath.Base(absolutePath))}, nil
 	default:
 		return nil, ErrNotSupportedTestSuiteType
 	}
