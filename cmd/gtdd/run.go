@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -81,38 +82,12 @@ will run the tests in the original order.`,
 				return err
 			}
 
-			errCh, resultsCh := make(chan error), make(chan runResults)
-			for _, schedule := range schedules {
-				go runSchedule(schedule, errCh, resultsCh, runners)
+			duration, err := runSchedules(schedules, runners)
+			if err != nil {
+				return nil
 			}
 
-			var (
-				errorMessages    = []string{}
-				expectedDuration time.Duration
-			)
-
-			for i := 0; i < len(schedules); i++ {
-				select {
-				case err := <-errCh:
-					return err
-				case result := <-resultsCh:
-					failed := slices.Index(result.results, false)
-					if failed != -1 {
-						errorMessages = append(errorMessages, fmt.Sprintf("test %v failed in schedule %v", result.schedule[failed], result.schedule))
-					}
-
-					log.Infof("run schedule in %v", result.time)
-					if expectedDuration < result.time {
-						expectedDuration = result.time
-					}
-				}
-			}
-
-			if len(errorMessages) > 0 {
-				return errors.New(strings.Join(errorMessages, "\n"))
-			}
-
-			log.Infof("expected running time %v", expectedDuration)
+			log.Infof("expected running time %v", duration)
 			return nil
 		},
 	}
@@ -126,14 +101,70 @@ will run the tests in the original order.`,
 	return runCommand
 }
 
-// runSchedule
-func runSchedule(schedule []string, errCh chan error, resultsCh chan runResults, r *runner.RunnerSet) {
-	out, err := r.RunSchedule(schedule)
-	if err != nil {
-		errCh <- err
+func runSchedules(schedules [][]string, runners *runner.RunnerSet) (time.Duration, error) {
+	scheduleCh := make(chan []string, runners.Size())
+	errCh, resultsCh := make(chan error), make(chan runResults, runners.Size())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-		return
+	for i := 0; i < runners.Size(); i++ {
+		go func() {
+			for {
+				select {
+				case schedule := <-scheduleCh:
+					out, err := runners.RunSchedule(schedule)
+					if err != nil {
+						errCh <- err
+
+						continue
+					}
+
+					resultsCh <- runResults{
+						schedule: schedule,
+						results:  out.Results,
+						time:     out.RunningTime}
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
 	}
 
-	resultsCh <- runResults{schedule: schedule, results: out.Results, time: out.RunningTime}
+	go func() {
+		for _, schedule := range schedules {
+			scheduleCh <- schedule
+		}
+	}()
+
+	var (
+		errorMessages = []string{}
+		duration      time.Duration
+	)
+
+	for i := 0; i < len(schedules); i++ {
+		select {
+		case err := <-errCh:
+			return 0, err
+		case result := <-resultsCh:
+			failed := slices.Index(result.results, false)
+			if failed != -1 {
+				msg := fmt.Sprintf("test %v failed in schedule %v",
+					result.schedule[failed], result.schedule)
+				errorMessages = append(errorMessages, msg)
+			}
+
+			log.Infof("run schedule in %v", result.time)
+			if duration < result.time {
+				duration = result.time
+			}
+		}
+	}
+	close(scheduleCh)
+	close(resultsCh)
+
+	if len(errorMessages) > 0 {
+		return 0, errors.New(strings.Join(errorMessages, "\n"))
+	}
+
+	return duration, nil
 }

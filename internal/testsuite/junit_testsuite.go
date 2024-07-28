@@ -18,7 +18,7 @@ find target/ -name TEST*.xml -exec grep testcase {} \\; | awk -F'\"' '{
       }
     }
     if (classname && name) { print classname \"#\" name }
-  }'`
+  }' | uniq`
 
 const junitRunner = `import org.junit.runner.JUnitCore;
 import org.junit.runner.Request;
@@ -61,7 +61,7 @@ COPY %s/ /app
 WORKDIR /app
 
 RUN curl -O https://repo1.maven.org/maven2/junit/junit/4.12/junit-4.12.jar
-RUN mvn test
+RUN mvn clean test
 RUN mvn dependency:build-classpath -DincludeScope=test -Dmdep.outputFile=cp.txt
 RUN echo "#\!/bin/sh\n%s"  > ./list_tests.sh
 RUN chmod +x list_tests.sh
@@ -129,7 +129,6 @@ func (j *JunitTestSuite) ListTests() (tests []string, err error) {
 
 func (j *JunitTestSuite) Run(config *RunConfig) (results []bool, err error) {
 	client, err := docker.NewClient()
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cleint for JUnit testsuite: %w", err)
 	}

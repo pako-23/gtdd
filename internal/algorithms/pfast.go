@@ -167,8 +167,6 @@ func recoveryPFAST(tests []string, runners *runner.RunnerSet, g *DependencyGraph
 			}
 		}
 
-		log.Infof("prefix stuff")
-
 		for s := range notPassingTests[test] {
 			if _, ok := passedSchedules[s]; ok {
 				continue
@@ -204,8 +202,8 @@ func PFAST(tests []string, r *runner.RunnerSet) (DependencyGraph, error) {
 		excluded int
 	}
 
-	results := make(chan result)
-	jobs := make(chan job, r.Size()+1)
+	results := make(chan result, r.Size())
+	jobs := make(chan job, r.Size())
 	done := make(chan struct{})
 
 	g := NewDependencyGraph(tests)

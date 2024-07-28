@@ -38,6 +38,7 @@ built.`,
 			if err != nil {
 				return err
 			}
+
 			tests, err := suite.ListTests()
 			if err != nil {
 				return err
