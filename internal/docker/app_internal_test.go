@@ -12,9 +12,8 @@ import (
 	"time"
 
 	cgotypes "github.com/compose-spec/compose-go/types"
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/strslice"
-
 	"gotest.tools/v3/assert"
 )
 
@@ -28,7 +27,7 @@ var images = map[string]func() io.ReadCloser{
 }
 
 func (m *mockClient) ImagePull(
-	ctx context.Context, refStr string, options types.ImagePullOptions,
+	ctx context.Context, refStr string, options image.PullOptions,
 ) (io.ReadCloser, error) {
 	if _, ok := m.failures["ImagePull"]; ok {
 		return nil, errInjectedFailure

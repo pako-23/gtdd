@@ -10,8 +10,8 @@ import (
 
 	cgo "github.com/compose-spec/compose-go/cli"
 	cgotypes "github.com/compose-spec/compose-go/types"
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/strslice"
 	log "github.com/sirupsen/logrus"
 )
@@ -80,8 +80,8 @@ func newService(name string, config *cgotypes.ServiceConfig) *service {
 	return &result
 }
 
-func (c *Client) pull(ctx context.Context, image string) error {
-	reader, err := c.client.ImagePull(ctx, image, types.ImagePullOptions{})
+func (c *Client) pull(ctx context.Context, imageName string) error {
+	reader, err := c.client.ImagePull(ctx, imageName, image.PullOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to pull Docker image: %w", err)
 	}
