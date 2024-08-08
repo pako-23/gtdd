@@ -46,12 +46,12 @@ func newBuildCmd() *cobra.Command {
 			})
 
 			waitgroup.Go(func() error {
-				suite, err := testsuite.FactoryTestSuite(path, viper.GetString("type"))
+				suite, err := testsuite.NewTestSuite(path)
 				if err != nil {
 					return err
 				}
 
-				if err := suite.Build(path); err != nil {
+				if err := suite.Build(); err != nil {
 					return fmt.Errorf("test suite artifacts build failed: %w", err)
 				}
 
@@ -66,8 +66,6 @@ func newBuildCmd() *cobra.Command {
 			return nil
 		},
 	}
-
-	buildCommand.Flags().StringP("type", "t", "", "The test suite type")
 
 	return buildCommand
 }

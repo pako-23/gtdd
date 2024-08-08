@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-const listTestsScript = `
+const junitListTestsScript = `
 find target/ -name TEST*.xml -exec grep testcase {} \\; | awk -F'\"' '{
     for (i = 1; i <= NF; i++) {
       if (\$i ~ /classname=/) {
@@ -55,7 +55,7 @@ public class CustomRunner {
     }
 }`
 
-const dockerFile = `FROM maven:3.6.1-jdk-8
+const junitDockerFile = `FROM maven:3.6.1-jdk-8
 
 COPY %s/ /app
 WORKDIR /app
@@ -82,9 +82,9 @@ func (j *JunitTestSuite) Build(path string) error {
 	}
 	defer os.Remove("Dockerfile")
 
-	fmt.Fprintf(file, dockerFile,
+	fmt.Fprintf(file, junitDockerFile,
 		path,
-		strings.ReplaceAll(listTestsScript, "\n", "\\n"),
+		strings.ReplaceAll(junitListTestsScript, "\n", "\\n"),
 		strings.ReplaceAll(junitRunner, "\n", "\\n"))
 	file.Close()
 

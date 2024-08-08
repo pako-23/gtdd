@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -39,7 +38,7 @@ will run the tests in the original order.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := args[0]
 
-			suite, err := testsuite.FactoryTestSuite(path, viper.GetString("type"))
+			suite, err := testsuite.NewTestSuite(path)
 			if err != nil {
 				return err
 			}
@@ -50,7 +49,7 @@ will run the tests in the original order.`,
 
 			options := []runner.RunnerOption[*compose_runner.ComposeRunner]{
 				compose_runner.WithEnv(viper.GetStringSlice("env")),
-				compose_runner.WithTestsuite(suite),
+				compose_runner.WithTestSuite(suite),
 			}
 
 			appComposePath := filepath.Join(path, "docker-compose.yml")
@@ -92,11 +91,10 @@ will run the tests in the original order.`,
 		},
 	}
 
-	runCommand.Flags().StringArrayP("env", "e", []string{}, "An environment variable to pass to the test suite container")
-	runCommand.Flags().StringP("driver", "d", "", "The path to a Docker Compose file configuring the driver")
-	runCommand.Flags().StringP("schedules", "s", "schedules.json", "A file containing the scedules to run")
-	runCommand.Flags().StringP("type", "t", "", "The test suite type")
-	runCommand.Flags().UintP("runners", "r", runner.DefaultSetSize, "The number of concurrent runners")
+	runCommand.Flags().StringArrayP("env", "e", []string{}, "an environment variable to pass to the test suite container")
+	runCommand.Flags().StringP("driver", "d", "", "the path to a Docker Compose file configuring the driver")
+	runCommand.Flags().StringP("graph", "g", "", "the file containing the graph of dependencies")
+	runCommand.Flags().UintP("runners", "r", runner.DefaultSetSize, "the number of concurrent runners")
 
 	return runCommand
 }
@@ -104,28 +102,22 @@ will run the tests in the original order.`,
 func runSchedules(schedules [][]string, runners *runner.RunnerSet) (time.Duration, error) {
 	scheduleCh := make(chan []string, runners.Size())
 	errCh, resultsCh := make(chan error), make(chan runResults, runners.Size())
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	for i := 0; i < runners.Size(); i++ {
 		go func() {
-			for {
-				select {
-				case schedule := <-scheduleCh:
-					out, err := runners.RunSchedule(schedule)
-					if err != nil {
-						errCh <- err
+			for schedule := range scheduleCh {
+				out, err := runners.RunSchedule(schedule)
+				if err != nil {
+					errCh <- err
 
-						continue
-					}
-
-					resultsCh <- runResults{
-						schedule: schedule,
-						results:  out.Results,
-						time:     out.RunningTime}
-				case <-ctx.Done():
-					return
+					continue
 				}
+
+				resultsCh <- runResults{
+					schedule: schedule,
+					results:  out.Results,
+					time:     out.RunningTime}
+
 			}
 		}()
 	}

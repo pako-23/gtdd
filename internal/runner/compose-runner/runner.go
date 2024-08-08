@@ -27,7 +27,7 @@ type ComposeRunner struct {
 	// to run the test suite are running.
 	network string
 	// The test suite that should be run inside this runner.
-	testSuite testsuite.TestSuite
+	testSuite *testsuite.TestSuite
 	// The environment variables that should be passed to the container running
 	// the test suite.
 	translatedEnv []string
@@ -112,7 +112,7 @@ func WithEnv(env []string) func(*ComposeRunner) error {
 	}
 }
 
-func WithTestsuite(suite testsuite.TestSuite) func(*ComposeRunner) error {
+func WithTestSuite(suite *testsuite.TestSuite) func(*ComposeRunner) error {
 	return func(runner *ComposeRunner) error {
 		runner.testSuite = suite
 		return nil
@@ -122,14 +122,14 @@ func WithTestsuite(suite testsuite.TestSuite) func(*ComposeRunner) error {
 // translateEnv translates each hostname in the value of each environment
 // variable based on the container names created by the runner. The resulting
 // environment variables are returned.
-func (r *ComposeRunner) translateEnv(variables []string) []string {
+func (c *ComposeRunner) translateEnv(variables []string) []string {
 	newEnv := make([]string, len(variables))
 
-	hosts := make([]string, 0, len(r.appDefinition)+len(r.driver))
-	for k := range r.appDefinition {
+	hosts := make([]string, 0, len(c.appDefinition)+len(c.driver))
+	for k := range c.appDefinition {
 		hosts = append(hosts, k)
 	}
-	for k := range r.driver {
+	for k := range c.driver {
 		hosts = append(hosts, k)
 	}
 
@@ -138,7 +138,7 @@ func (r *ComposeRunner) translateEnv(variables []string) []string {
 
 		for _, host := range hosts {
 			re := regexp.MustCompile(fmt.Sprintf("\\b%s\\b", host))
-			after = re.ReplaceAllString(after, fmt.Sprintf("%s-%s", r.Id(), host))
+			after = re.ReplaceAllString(after, fmt.Sprintf("%s-%s", c.Id(), host))
 		}
 
 		newEnv[index] = fmt.Sprintf("%s=%s", before, after)

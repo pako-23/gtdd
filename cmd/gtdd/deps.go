@@ -34,7 +34,7 @@ built.`,
 				return errors.New("the dependency detection strategy does not exist")
 			}
 
-			suite, err := testsuite.FactoryTestSuite(path, viper.GetString("type"))
+			suite, err := testsuite.NewTestSuite(path)
 			if err != nil {
 				return err
 			}
@@ -46,7 +46,7 @@ built.`,
 
 			options := []runner.RunnerOption[*compose_runner.ComposeRunner]{
 				compose_runner.WithEnv(viper.GetStringSlice("env")),
-				compose_runner.WithTestsuite(suite),
+				compose_runner.WithTestSuite(suite),
 			}
 
 			appComposePath := filepath.Join(path, "docker-compose.yml")
@@ -94,7 +94,6 @@ built.`,
 	depsCommand.Flags().StringP("driver", "d", "", "The path to a Docker Compose file configuring the driver")
 	depsCommand.Flags().StringP("output", "o", "graph.json", "The file used to output the resulting dependency graph")
 	depsCommand.Flags().StringP("strategy", "s", "pfast", "The strategy to detect dependencies between tests")
-	depsCommand.Flags().StringP("type", "t", "", "The test suite type")
 	depsCommand.Flags().UintP("runners", "r", runner.DefaultSetSize, "The number of concurrent runners")
 
 	return depsCommand
