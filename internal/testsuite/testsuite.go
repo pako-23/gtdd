@@ -65,7 +65,7 @@ func (t *TestSuite) ListTests() ([]string, error) {
 	}
 	instance, err := client.Run(app, docker.RunOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to start Java test suite container: %w", err)
+		return nil, fmt.Errorf("failed to start test suite container: %w", err)
 	}
 	defer func() {
 		deleteErr := client.Delete(instance)
@@ -86,7 +86,7 @@ func (t *TestSuite) ListTests() ([]string, error) {
 func (t *TestSuite) Run(config *RunConfig) ([]bool, error) {
 	client, err := docker.NewClient()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create client to run Java test suite: %w", err)
+		return nil, fmt.Errorf("failed to create client to run test suite: %w", err)
 	}
 
 	suite := docker.App{
@@ -99,7 +99,7 @@ func (t *TestSuite) Run(config *RunConfig) ([]bool, error) {
 
 	instance, err := client.Run(suite, *config.StartConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error in starting java test suite container: %w", err)
+		return nil, fmt.Errorf("error in starting test suite container: %w", err)
 	}
 	defer func() {
 		deleteErr := client.Delete(instance)
@@ -114,7 +114,7 @@ func (t *TestSuite) Run(config *RunConfig) ([]bool, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Debugf("successfully obtained logs from java test suite container %s", instance["testsuite"])
+	log.Debugf("successfully obtained logs from test suite container %s", instance["testsuite"])
 	log.Debugf("container logs: %s", logs)
 
 	result := make([]bool, len(config.Tests))

@@ -55,7 +55,13 @@ func (c *Client) isRunning(ctx context.Context, containerID string) (bool, error
 
 	if stats.Config.Healthcheck == nil {
 		switch stats.State.Status {
-		case "paused", "restarting", "removing", "exited", "dead":
+		case "exited":
+			if stats.State.ExitCode == 0 {
+				return true, nil
+			}
+
+			return false, fmt.Errorf("the container exited with status code %d", stats.State.ExitCode)
+		case "paused", "restarting", "removing", "dead":
 			return false, fmt.Errorf("the container is into state: %s", stats.State.Status)
 		default:
 			return stats.State.Status == "running", nil
