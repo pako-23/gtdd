@@ -76,7 +76,7 @@ will run the tests in the original order.`,
 				}
 			}()
 
-			schedules, err := getSchedules(tests, viper.GetString("schedules"))
+			schedules, err := getSchedules(tests, viper.GetString("graph"))
 			if err != nil {
 				return err
 			}
