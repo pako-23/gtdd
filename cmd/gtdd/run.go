@@ -83,7 +83,7 @@ will run the tests in the original order.`,
 
 			duration, err := runSchedules(schedules, runners)
 			if err != nil {
-				return nil
+				return err
 			}
 
 			log.Infof("expected running time %v", duration)
