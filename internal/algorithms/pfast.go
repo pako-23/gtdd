@@ -1,46 +1,48 @@
 package algorithms
 
 import (
+	"sort"
+
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
 	"github.com/pako-23/gtdd/internal/runner"
 )
 
-func findPossibleTargets(tests []string, g *DependencyGraph) map[string]int {
-	targets := map[string]int{}
-	visited := map[string]struct{}{}
+// func findPossibleTargets(tests []string, g *DependencyGraph) map[string]int {
+// 	targets := map[string]int{}
+// 	visited := map[string]struct{}{}
 
-	for i := len(tests) - 1; i >= 0; i-- {
-		if _, ok := visited[tests[i]]; ok {
-			continue
-		}
+// 	for i := len(tests) - 1; i >= 0; i-- {
+// 		if _, ok := visited[tests[i]]; ok {
+// 			continue
+// 		}
 
-		deps := g.getDependencies(tests[i])
-		targets[tests[i]] = len(deps)
-		visited[tests[i]] = struct{}{}
+// 		deps := g.getDependencies(tests[i])
+// 		targets[tests[i]] = len(deps)
+// 		visited[tests[i]] = struct{}{}
 
-		for dep := range deps {
-			visited[dep] = struct{}{}
-		}
-	}
+// 		for dep := range deps {
+// 			visited[dep] = struct{}{}
+// 		}
+// 	}
 
-	return targets
-}
+// 	return targets
+// }
 
-func selectTarget(targets map[string]int) string {
-	res := ""
-	max := -1
+// func selectTarget(targets map[string]int) string {
+// 	res := ""
+// 	max := -1
 
-	for target, value := range targets {
-		if value > max {
-			res = target
-			max = value
-		}
-	}
+// 	for target, value := range targets {
+// 		if value > max {
+// 			res = target
+// 			max = value
+// 		}
+// 	}
 
-	return res
-}
+// 	return res
+// }
 
 func detectFailingTests(runners *runner.RunnerSet, schedules [][]string) (map[string]map[int]struct{}, error) {
 	type results struct {
@@ -104,16 +106,119 @@ func solvedSchedule(notPassingTests map[string]map[int]struct{}, passedSchedules
 	return true
 }
 
-func cleanAddedEdges(tests []string, runners *runner.RunnerSet, i int, test string, g *DependencyGraph) error {
-	targets := findPossibleTargets(tests[:i], g)
-	for target := range targets {
-		log.Infof("recovery add edge %s -> %s", test, target)
-		g.addDependency(test, target)
+// func cleanAddedEdges(tests []string, runners *runner.RunnerSet, i int, test string, g *DependencyGraph) error {
+// 	targets := findPossibleTargets(tests[:i], g)
+// 	for target := range targets {
+// 		log.Infof("recovery add edge %s -> %s", test, target)
+// 		g.addDependency(test, target)
+// 	}
+
+// 	for target := selectTarget(targets); target != ""; target = selectTarget(targets) {
+// 		log.Infof("exploring target %s", target)
+// 		g.removeDependency(test, target)
+// 		deps := g.getDependencies(test)
+
+// 		schedule := []string{}
+// 		for _, test := range tests {
+// 			if _, ok := deps[test]; ok {
+// 				schedule = append(schedule, test)
+// 			}
+// 		}
+// 		schedule = append(schedule, test)
+// 		results, err := runners.RunSchedule(schedule)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		log.Debugf("run tests %v -> %v", schedule, results.Results)
+
+// 		if firstFailed := slices.Index(results.Results, false); firstFailed == -1 {
+// 			delete(targets, target)
+// 		} else if firstFailed == len(schedule)-1 {
+// 			delete(targets, target)
+// 			g.addDependency(test, target)
+// 		}
+// 	}
+// 	return nil
+// }
+
+// func recoveryPFAST(tests []string, runners *runner.RunnerSet, g *DependencyGraph) error {
+// 	schedules := g.GetSchedules(tests)
+// 	notPassingTests, err := detectFailingTests(runners, schedules)
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	log.Infof("failing tests %v", notPassingTests)
+
+// 	passedSchedules := map[int]struct{}{}
+// 	for i, test := range tests {
+// 		log.Infof("recovery working on test %s", test)
+// 		if solvedSchedule(notPassingTests, passedSchedules, test) {
+// 			continue
+// 		}
+
+// 		if err := cleanAddedEdges(tests, runners, i, test, g); err != nil {
+// 			return err
+// 		}
+
+// 		deps := g.getDependencies(test)
+// 		prefix := []string{}
+// 		for _, test := range tests {
+// 			if _, ok := deps[test]; ok {
+// 				prefix = append(prefix, test)
+// 			}
+// 		}
+
+// 		for s := range notPassingTests[test] {
+// 			if _, ok := passedSchedules[s]; ok {
+// 				continue
+// 			}
+
+// 			index := slices.Index(schedules[s], test)
+// 			schedule := prefix
+// 			schedule = append(schedule, schedules[s][index:]...)
+// 			results, err := runners.RunSchedule(schedule)
+// 			if err != nil {
+// 				return err
+// 			}
+// 			log.Debugf("run tests %v -> %v", schedule, results.Results)
+
+// 			if firstFailed := slices.Index(results.Results, false); firstFailed == -1 {
+// 				passedSchedules[s] = struct{}{}
+// 			}
+// 		}
+// 	}
+
+// 	return nil
+// }
+
+type dependency struct {
+	test string
+	rank int
+}
+
+func findTargets(tests []string, g *DependencyGraph) []dependency {
+	targets := make([]dependency, 0, len(tests))
+
+	for i := 0; i < len(tests); i++ {
+		targets = append(targets, dependency{
+			test: tests[i],
+			rank: len(g.getDependencies(tests[i])),
+		})
 	}
 
-	for target := selectTarget(targets); target != ""; target = selectTarget(targets) {
-		log.Infof("exploring target %s", target)
-		g.removeDependency(test, target)
+	sort.SliceStable(targets, func(i, j int) bool {
+		return targets[i].rank < targets[j].rank
+	})
+	return targets
+}
+
+func solveNode(tests []string, runners *runner.RunnerSet, i int, test string, g *DependencyGraph) error {
+	targets := findTargets(tests[:i], g)
+	end := 0
+	for i, target := range targets {
+		log.Infof("recovery add edge %s -> %s", test, target.test)
+		g.addDependency(test, target.test)
 		deps := g.getDependencies(test)
 
 		schedule := []string{}
@@ -130,12 +235,36 @@ func cleanAddedEdges(tests []string, runners *runner.RunnerSet, i int, test stri
 		log.Debugf("run tests %v -> %v", schedule, results.Results)
 
 		if firstFailed := slices.Index(results.Results, false); firstFailed == -1 {
-			delete(targets, target)
-		} else if firstFailed == len(schedule)-1 {
-			delete(targets, target)
-			g.addDependency(test, target)
+			end = i
+			break
 		}
 	}
+
+	for i, target := range targets {
+		if i == end {
+			break
+		}
+		g.removeDependency(test, target.test)
+		deps := g.getDependencies(test)
+
+		schedule := []string{}
+		for _, test := range tests {
+			if _, ok := deps[test]; ok {
+				schedule = append(schedule, test)
+			}
+		}
+		schedule = append(schedule, test)
+		results, err := runners.RunSchedule(schedule)
+		if err != nil {
+			return err
+		}
+		log.Debugf("run tests %v -> %v", schedule, results.Results)
+
+		if firstFailed := slices.Index(results.Results, false); firstFailed != -1 {
+			g.addDependency(test, target.test)
+		}
+	}
+
 	return nil
 }
 
@@ -155,7 +284,7 @@ func recoveryPFAST(tests []string, runners *runner.RunnerSet, g *DependencyGraph
 			continue
 		}
 
-		if err := cleanAddedEdges(tests, runners, i, test, g); err != nil {
+		if err := solveNode(tests, runners, i, test, g); err != nil {
 			return err
 		}
 
@@ -272,6 +401,7 @@ func PFAST(tests []string, r *runner.RunnerSet) (DependencyGraph, error) {
 	}
 	close(jobs)
 
+	g.transitiveReduction()
 	if err := recoveryPFAST(tests, r, &g); err != nil {
 		return nil, err
 	}

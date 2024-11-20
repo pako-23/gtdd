@@ -153,7 +153,6 @@ func testExistingDependencies(t *testing.T, algo algorithms.DependencyDetector) 
 				"tests.AddressBookAddGroupTest",
 				"tests.AddressBookAssignToGroupTest",
 				"tests.AddressBookSearchByGroupTest",
-
 				"tests.AddressBookCheckBirthdayInfoTest",
 				"tests.AddressBookCheckAddressBookTest",
 				"tests.AddressBookPrintAddressBookTest",
@@ -413,6 +412,372 @@ func testExistingDependencies(t *testing.T, algo algorithms.DependencyDetector) 
 				},
 				"tests.AddressBookSearchMultipleAddressBookNameTest": {
 					"tests.AddressBookAddMultipleAddressBookTest": {},
+				},
+			}),
+		},
+		{
+			testsuite: []string{
+				"PasswordManagerAddEntryTest",
+				"PasswordManagerSearchEntryByNameTest",
+				"PasswordManagerSearchEntryByUsernameTest",
+				"PasswordManagerSearchEntryByUrlTest",
+				"PasswordManagerSearchEntryByTagsTest",
+				"PasswordManagerSearchEntryByCommentTest",
+				"PasswordManagerSearchEntryByTagListTest",
+				"PasswordManagerEditEntryTest",
+				"PasswordManagerSearchTagsTest",
+				"PasswordManagerRemoveTagsTest",
+				"PasswordManagerCheckEntryTagsRemovedTest",
+				"PasswordManagerRemoveEntryTest",
+				"PasswordManagerSearchEntryNegativeTest",
+				"PasswordManagerSearchTagNegativeTest",
+				"PasswordManagerAddTagTest",
+				"PasswordManagerEditTagTest",
+				"PasswordManagerRemoveTagTest",
+				"PasswordManagerAssignTagToEntryTest",
+				"PasswordManagerAddMultipleEntriesTest",
+				"PasswordManagerSearchMultipleEntriesTest",
+				"PasswordManagerCheckUsedTagsTest",
+				"PasswordManagerSearchAndRemoveMultipleTagsTest",
+				"PasswordManagerRemoveMultipleEntriesTest",
+			},
+			dependencies: map[string][][]string{
+				"PasswordManagerSearchEntryByNameTest": {
+					{"PasswordManagerAddEntryTest"},
+				},
+				"PasswordManagerSearchEntryByTagsTest": {
+					{"PasswordManagerAddEntryTest"},
+				},
+				"PasswordManagerSearchTagsTest": {
+					{"PasswordManagerAddEntryTest"},
+				},
+				"PasswordManagerAssignTagToEntryTest": {
+					{
+						"PasswordManagerAddEntryTest",
+						"PasswordManagerRemoveTagsTest",
+					},
+				},
+				"PasswordManagerCheckUsedTagsTest": {
+					{
+						"PasswordManagerAddEntryTest",
+						"PasswordManagerRemoveTagsTest",
+						"PasswordManagerRemoveEntryTest",
+						"PasswordManagerAssignTagToEntryTest",
+						"PasswordManagerAddMultipleEntriesTest",
+					},
+				},
+				"PasswordManagerSearchAndRemoveMultipleTagsTest": {
+					{
+						"PasswordManagerAddEntryTest",
+						"PasswordManagerRemoveTagsTest",
+						"PasswordManagerRemoveEntryTest",
+						"PasswordManagerAssignTagToEntryTest",
+						"PasswordManagerAddMultipleEntriesTest",
+					},
+				},
+				"PasswordManagerSearchEntryByCommentTest": {
+					{"PasswordManagerAddEntryTest"},
+				},
+				"PasswordManagerEditEntryTest": {
+					{"PasswordManagerAddEntryTest"},
+				},
+				"PasswordManagerRemoveTagsTest": {
+					{"PasswordManagerAddEntryTest"},
+				},
+				"PasswordManagerRemoveMultipleEntriesTest": {
+					{
+						"PasswordManagerAddEntryTest",
+						"PasswordManagerRemoveEntryTest",
+						"PasswordManagerAddMultipleEntriesTest",
+					},
+				},
+				"PasswordManagerSearchEntryByUsernameTest": {
+					{"PasswordManagerAddEntryTest"},
+				},
+				"PasswordManagerCheckEntryTagsRemovedTest": {
+					{
+						"PasswordManagerAddEntryTest",
+						"PasswordManagerRemoveTagsTest",
+					},
+				},
+				"PasswordManagerAddTagTest": {
+					{
+						"PasswordManagerAddEntryTest",
+						"PasswordManagerRemoveTagsTest",
+					},
+				},
+				"PasswordManagerAddMultipleEntriesTest": {
+					{
+						"PasswordManagerAddEntryTest",
+						"PasswordManagerRemoveEntryTest",
+					},
+				},
+				"PasswordManagerSearchEntryByUrlTest": {
+					{"PasswordManagerAddEntryTest"},
+				},
+				"PasswordManagerSearchEntryByTagListTest": {
+					{"PasswordManagerAddEntryTest"},
+				},
+				"PasswordManagerRemoveEntryTest": {
+					{"PasswordManagerAddEntryTest"},
+				},
+				"PasswordManagerEditTagTest": {
+					{
+						"PasswordManagerAddEntryTest",
+						"PasswordManagerRemoveTagsTest",
+						"PasswordManagerAddTagTest",
+					},
+				},
+				"PasswordManagerRemoveTagTest": {
+					{
+						"PasswordManagerAddEntryTest",
+						"PasswordManagerRemoveTagsTest",
+						"PasswordManagerAddTagTest",
+					},
+				},
+				"PasswordManagerSearchMultipleEntriesTest": {
+					{
+						"PasswordManagerAddEntryTest",
+						"PasswordManagerRemoveEntryTest",
+						"PasswordManagerAddMultipleEntriesTest",
+					},
+				},
+			},
+			expected: algorithms.DependencyGraph(map[string]map[string]struct{}{
+				"PasswordManagerAddEntryTest": {},
+				"PasswordManagerAddMultipleEntriesTest": {
+					"PasswordManagerRemoveEntryTest": {},
+				},
+				"PasswordManagerAddTagTest": {
+					"PasswordManagerRemoveTagsTest": {},
+				},
+				"PasswordManagerAssignTagToEntryTest": {
+					"PasswordManagerRemoveTagsTest": {},
+				},
+				"PasswordManagerCheckEntryTagsRemovedTest": {
+					"PasswordManagerRemoveTagsTest": {},
+				},
+				"PasswordManagerCheckUsedTagsTest": {
+					"PasswordManagerAddMultipleEntriesTest": {},
+					"PasswordManagerAssignTagToEntryTest":   {},
+				},
+				"PasswordManagerEditEntryTest": {
+					"PasswordManagerAddEntryTest": {},
+				},
+				"PasswordManagerEditTagTest": {
+					"PasswordManagerAddTagTest": {},
+				},
+				"PasswordManagerRemoveEntryTest": {
+					"PasswordManagerAddEntryTest": {},
+				},
+				"PasswordManagerRemoveMultipleEntriesTest": {
+					"PasswordManagerAddMultipleEntriesTest": {},
+				},
+				"PasswordManagerRemoveTagTest": {
+					"PasswordManagerAddTagTest": {},
+				},
+				"PasswordManagerRemoveTagsTest": {
+					"PasswordManagerAddEntryTest": {},
+				},
+				"PasswordManagerSearchAndRemoveMultipleTagsTest": {
+					"PasswordManagerAddMultipleEntriesTest": {},
+					"PasswordManagerAssignTagToEntryTest":   {},
+				},
+				"PasswordManagerSearchEntryByCommentTest": {
+					"PasswordManagerAddEntryTest": {},
+				},
+				"PasswordManagerSearchEntryByNameTest": {
+					"PasswordManagerAddEntryTest": {},
+				},
+				"PasswordManagerSearchEntryByTagListTest": {
+					"PasswordManagerAddEntryTest": {},
+				},
+				"PasswordManagerSearchEntryByTagsTest": {
+					"PasswordManagerAddEntryTest": {},
+				},
+				"PasswordManagerSearchEntryByUrlTest": {
+					"PasswordManagerAddEntryTest": {},
+				},
+				"PasswordManagerSearchEntryByUsernameTest": {
+					"PasswordManagerAddEntryTest": {},
+				},
+				"PasswordManagerSearchEntryNegativeTest": {},
+				"PasswordManagerSearchMultipleEntriesTest": {
+					"PasswordManagerAddMultipleEntriesTest": {},
+				},
+				"PasswordManagerSearchTagNegativeTest": {},
+				"PasswordManagerSearchTagsTest": {
+					"PasswordManagerAddEntryTest": {},
+				}}),
+		},
+		{
+			testsuite: []string{
+				"AddUserTest",
+				"LoginUserTest",
+				"AddExistingUserFailsTest",
+				"AddProductTest",
+				"AddNewProdToCartTest",
+				"SearchProductTest",
+				"AddReviewTest",
+				"SeeReviewTest",
+				"AddDiscountCodeAmountTest",
+				"AddDiscountCodePercentTest",
+				"UseDiscountCodeAmountTest",
+				"UseDiscountCodePercentTest",
+				"AddProductTagTest",
+				"SearchProductTagTest",
+				"AddMenuTest",
+				"OpenMenuTest",
+				"DeleteDiscountCodeAmountTest",
+				"DeleteDiscountCodePercentTest",
+				"DeletedDiscountCodeFailsAmountTest",
+				"DeletedDiscountCodeFailsPercentTest",
+				"DeleteUserTest",
+				"LoginDeletedUserFailsTest",
+				"DeleteReviewTest",
+				"DeleteProductTagTest",
+				"SearchDeletedProductTagFailsTest",
+				"DeleteProductTest",
+				"SearchDeletedProductFailsTest",
+			},
+			dependencies: map[string][][]string{
+				"SearchProductTest":             {{"AddProductTest"}},
+				"DeleteDiscountCodePercentTest": {{"AddDiscountCodePercentTest"}},
+				"DeletedDiscountCodeFailsAmountTest": {
+					{
+						"AddDiscountCodeAmountTest",
+						"DeleteDiscountCodeAmountTest",
+					},
+				},
+				"LoginDeletedUserFailsTest": {
+					{
+						"AddUserTest",
+						"DeleteUserTest",
+					},
+				},
+				"DeletedDiscountCodeFailsPercentTest": {
+					{
+						"AddDiscountCodePercentTest",
+						"DeleteDiscountCodePercentTest",
+					},
+				},
+				"DeleteUserTest": {{"AddUserTest"}},
+				"LoginUserTest":  {{"AddUserTest"}},
+				"SeeReviewTest": {
+					{
+						"AddProductTest",
+						"AddReviewTest",
+					},
+				},
+				"OpenMenuTest": {
+					{
+						"AddProductTest",
+						"AddProductTagTest",
+						"AddMenuTest",
+					},
+				},
+				"DeleteDiscountCodeAmountTest": {{"AddDiscountCodeAmountTest"}},
+				"AddNewProdToCartTest":         {{"AddProductTest"}},
+				"SearchProductTagTest": {
+					{
+						"AddProductTest",
+						"AddProductTagTest",
+					},
+				},
+				"DeleteProductTagTest": {
+					{
+						"AddProductTest",
+						"AddProductTagTest",
+					},
+				},
+				"SearchDeletedProductFailsTest": {{"DeleteProductTest"}},
+				"AddProductTagTest":             {{"AddProductTest"}},
+				"SearchDeletedProductTagFailsTest": {
+					{
+						"AddProductTest",
+						"AddProductTagTest",
+						"DeleteProductTagTest",
+					},
+				},
+				"AddExistingUserFailsTest":  {{"AddUserTest"}},
+				"AddReviewTest":             {{"AddProductTest"}},
+				"UseDiscountCodeAmountTest": {{"AddDiscountCodeAmountTest"}},
+				"UseDiscountCodePercentTest": {
+					{
+						"AddProductTest",
+						"AddDiscountCodePercentTest",
+					},
+				},
+			},
+			expected: algorithms.DependencyGraph(map[string]map[string]struct{}{
+				"AddDiscountCodeAmountTest":  {},
+				"AddDiscountCodePercentTest": {},
+				"AddExistingUserFailsTest": {
+					"AddUserTest": {},
+				},
+				"AddMenuTest": {},
+				"AddNewProdToCartTest": {
+					"AddProductTest": {},
+				},
+				"AddProductTagTest": {
+					"AddProductTest": {},
+				},
+				"AddProductTest": {},
+				"AddReviewTest": {
+					"AddProductTest": {},
+				},
+				"AddUserTest": {},
+				"DeleteDiscountCodeAmountTest": {
+					"AddDiscountCodeAmountTest": {},
+				},
+				"DeleteDiscountCodePercentTest": {
+					"AddDiscountCodePercentTest": {},
+				},
+				"DeleteProductTagTest": {
+					"AddProductTagTest": {},
+				},
+				"DeleteProductTest": {},
+				"DeleteReviewTest":  {},
+				"DeleteUserTest": {
+					"AddUserTest": {},
+				},
+				"DeletedDiscountCodeFailsAmountTest": {
+					"DeleteDiscountCodeAmountTest": {},
+				},
+				"DeletedDiscountCodeFailsPercentTest": {
+					"DeleteDiscountCodePercentTest": {},
+				},
+				"LoginDeletedUserFailsTest": {
+					"DeleteUserTest": {},
+				},
+				"LoginUserTest": {
+					"AddUserTest": {},
+				},
+				"OpenMenuTest": {
+					"AddMenuTest":       {},
+					"AddProductTagTest": {},
+				},
+				"SearchDeletedProductFailsTest": {
+					"DeleteProductTest": {},
+				},
+				"SearchDeletedProductTagFailsTest": {
+					"DeleteProductTagTest": {},
+				},
+				"SearchProductTagTest": {
+					"AddProductTagTest": {},
+				},
+				"SearchProductTest": {
+					"AddProductTest": {},
+				},
+				"SeeReviewTest": {
+					"AddReviewTest": {},
+				},
+				"UseDiscountCodeAmountTest": {
+					"AddDiscountCodeAmountTest": {},
+				},
+				"UseDiscountCodePercentTest": {
+					"AddDiscountCodePercentTest": {},
+					"AddProductTest":             {},
 				},
 			}),
 		},

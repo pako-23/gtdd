@@ -41,8 +41,15 @@ var (
 		},
 		"paused":   {Status: "paused"},
 		"removing": {Status: "removing"},
-		"exited":   {Status: "exited"},
-		"dead":     {Status: "dead"},
+		"exited": {
+			Status:   "exited",
+			ExitCode: 0,
+		},
+		"exited-1": {
+			Status:   "exited",
+			ExitCode: 1,
+		},
+		"dead": {Status: "dead"},
 		"not-passed-yet-health": {
 			Health: &types.Health{
 				FailingStreak: 1,
@@ -246,12 +253,12 @@ func TestContainerIsRunning(t *testing.T) {
 	t.Parallel()
 
 	var tests = []*container.Config{
-
 		{Image: "running"},
 		{
 			Image:       "healthy",
 			Healthcheck: &container.HealthConfig{Retries: 10},
 		},
+		{Image: "exited"},
 	}
 
 	client := newMockClient()
@@ -293,8 +300,8 @@ func TestContainerIsRunningErrors(t *testing.T) {
 			error:  "container is into state",
 		},
 		{
-			config: &container.Config{Image: "exited"},
-			error:  "container is into state",
+			config: &container.Config{Image: "exited-1"},
+			error:  "container exited with status code 1",
 		},
 		{
 			config: &container.Config{Image: "dead"},
@@ -561,8 +568,8 @@ func TestRunErrors(t *testing.T) {
 			err: "the container is into state",
 		},
 		{
-			app: App{"run-error-fail-create-12": {Image: "exited"}},
-			err: "the container is into state",
+			app: App{"run-error-fail-create-12": {Image: "exited-1"}},
+			err: "the container exited with status code 1",
 		},
 	}
 
