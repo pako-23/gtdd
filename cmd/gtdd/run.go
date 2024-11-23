@@ -1,27 +1,16 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
-	"time"
 
 	"github.com/pako-23/gtdd/internal/runner"
 	compose_runner "github.com/pako-23/gtdd/internal/runner/compose-runner"
 	"github.com/pako-23/gtdd/internal/testsuite"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"golang.org/x/exp/slices"
 )
-
-type runResults struct {
-	results  []bool
-	schedule []string
-	time     time.Duration
-}
 
 func newRunCmd() *cobra.Command {
 
@@ -97,66 +86,4 @@ will run the tests in the original order.`,
 	runCommand.Flags().UintP("runners", "r", runner.DefaultSetSize, "the number of concurrent runners")
 
 	return runCommand
-}
-
-func runSchedules(schedules [][]string, runners *runner.RunnerSet) (time.Duration, error) {
-	scheduleCh := make(chan []string, runners.Size())
-	errCh, resultsCh := make(chan error), make(chan runResults, runners.Size())
-
-	for i := 0; i < runners.Size(); i++ {
-		go func() {
-			for schedule := range scheduleCh {
-				out, err := runners.RunSchedule(schedule)
-				if err != nil {
-					errCh <- err
-
-					continue
-				}
-
-				resultsCh <- runResults{
-					schedule: schedule,
-					results:  out.Results,
-					time:     out.RunningTime}
-
-			}
-		}()
-	}
-
-	go func() {
-		for _, schedule := range schedules {
-			scheduleCh <- schedule
-		}
-	}()
-
-	var (
-		errorMessages = []string{}
-		duration      time.Duration
-	)
-
-	for i := 0; i < len(schedules); i++ {
-		select {
-		case err := <-errCh:
-			return 0, err
-		case result := <-resultsCh:
-			failed := slices.Index(result.results, false)
-			if failed != -1 {
-				msg := fmt.Sprintf("test %v failed in schedule %v",
-					result.schedule[failed], result.schedule)
-				errorMessages = append(errorMessages, msg)
-			}
-
-			log.Infof("run schedule in %v", result.time)
-			if duration < result.time {
-				duration = result.time
-			}
-		}
-	}
-	close(scheduleCh)
-	close(resultsCh)
-
-	if len(errorMessages) > 0 {
-		return 0, errors.New(strings.Join(errorMessages, "\n"))
-	}
-
-	return duration, nil
 }

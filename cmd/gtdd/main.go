@@ -55,6 +55,7 @@ func newRootCmd() *cobra.Command {
 	rootCommand.AddCommand(
 		newBuildCmd(),
 		newDepsCmd(),
+		newFlakyCmd(),
 		newGraphCmd(),
 		newRunCmd(),
 		newSchedulesCmd(),

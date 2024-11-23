@@ -3,11 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/pako-23/gtdd/internal/algorithms"
+	"os"
+
 	"github.com/pako-23/gtdd/internal/testsuite"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"os"
 )
 
 func newSchedulesCmd() *cobra.Command {
@@ -64,17 +64,4 @@ func newSchedulesCmd() *cobra.Command {
 	schedulesCommand.Flags().StringP("output", "o", "schedules.json", "The path where to write the resulting schedules")
 
 	return schedulesCommand
-}
-
-// getSchedules
-func getSchedules(tests []string, inputFileName string) ([][]string, error) {
-	if inputFileName == "" {
-		return [][]string{tests}, nil
-	}
-	graph, err := algorithms.DependencyGraphFromJson(inputFileName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get schedules from graph: %w", err)
-	}
-
-	return graph.GetSchedules(tests), err
 }

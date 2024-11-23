@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/pako-23/gtdd/internal/algorithms"
 	"github.com/pako-23/gtdd/internal/runner"
 	"github.com/pako-23/gtdd/internal/runner/compose-runner"
 	"github.com/pako-23/gtdd/internal/testsuite"
@@ -97,17 +96,4 @@ built.`,
 	depsCommand.Flags().UintP("runners", "r", runner.DefaultSetSize, "The number of concurrent runners")
 
 	return depsCommand
-}
-
-func getDetector(strategy string) algorithms.DependencyDetector {
-	switch strategy {
-	case "pfast":
-		return algorithms.PFAST
-	case "pradet":
-		return algorithms.PraDet
-	case "mem-fast":
-		return algorithms.MEMFAST
-	default:
-		return nil
-	}
 }
