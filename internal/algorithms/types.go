@@ -66,7 +66,7 @@ func DependencyGraphFromJson(fileName string) (DependencyGraph, error) {
 	g := NewDependencyGraph(tests)
 	for test, dependencies := range graph {
 		for _, dependency := range dependencies {
-			g.addDependency(test, dependency)
+			g.AddDependency(test, dependency)
 		}
 	}
 
@@ -75,21 +75,21 @@ func DependencyGraphFromJson(fileName string) (DependencyGraph, error) {
 
 // AddDependency adds a dependency relationship between two tests of a
 // test suite.
-func (d DependencyGraph) addDependency(from, to string) {
+func (d DependencyGraph) AddDependency(from, to string) {
 	d[from][to] = struct{}{}
 }
 
 // RemoveDependency removes a dependency relationship between two tests of a
 // test suite.
-func (d DependencyGraph) removeDependency(from, to string) {
+func (d DependencyGraph) RemoveDependency(from, to string) {
 	delete(d[from], to)
 }
 
 // InvertDependency inverts a dependency relationship between two tests of a
 // test suite.
-func (d DependencyGraph) invertDependency(from, to string) {
-	d.removeDependency(from, to)
-	d.addDependency(to, from)
+func (d DependencyGraph) InvertDependency(from, to string) {
+	d.RemoveDependency(from, to)
+	d.AddDependency(to, from)
 }
 
 func (d DependencyGraph) Equal(other DependencyGraph) bool {
@@ -115,7 +115,7 @@ func (d DependencyGraph) Equal(other DependencyGraph) bool {
 }
 
 // GetDependencies returns all the dependencies of a given test.
-func (d DependencyGraph) getDependencies(test string) map[string]struct{} {
+func (d DependencyGraph) GetDependencies(test string) map[string]struct{} {
 	var (
 		dependencies = map[string]struct{}{}
 		stack        = []string{}
@@ -143,7 +143,7 @@ func (d DependencyGraph) getDependencies(test string) map[string]struct{} {
 }
 
 // TransitiveReduction computes the transitive reduction of a dependency graph.
-func (d DependencyGraph) transitiveReduction() {
+func (d DependencyGraph) TransitiveReduction() {
 	for node, edges := range d {
 		minEdges := make(map[string]struct{})
 
@@ -152,7 +152,7 @@ func (d DependencyGraph) transitiveReduction() {
 		}
 
 		for v := range edges {
-			dependencies := d.getDependencies(v)
+			dependencies := d.GetDependencies(v)
 
 			for u := range edges {
 				_, isDependency := dependencies[u]
@@ -171,7 +171,7 @@ func (d DependencyGraph) transitiveReduction() {
 // ToJSON returns a JSON representation of the dependencies relationship
 // between tests of a test suite.
 func (d DependencyGraph) ToJSON(w io.Writer) {
-	d.transitiveReduction()
+	d.TransitiveReduction()
 	graph := map[string][]string{}
 
 	for test, dependencies := range d {
@@ -199,8 +199,7 @@ func (d DependencyGraph) ToDOT(w io.Writer) {
 	w.Write([]byte("    newrank = \"true\"\n"))
 	w.Write([]byte("    subgraph \"root\" {\n"))
 
-	tests := []string{}
-
+	tests := make([]string, 0, len(d))
 	for test := range d {
 		tests = append(tests, test)
 	}
@@ -240,7 +239,7 @@ func (d DependencyGraph) GetSchedules(tests []string) [][]string {
 			continue
 		}
 
-		deps := d.getDependencies(tests[i])
+		deps := d.GetDependencies(tests[i])
 		schedule := []string{}
 
 		for _, item := range tests {

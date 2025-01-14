@@ -10,14 +10,14 @@ import (
 func edgeSelectPraDet(g DependencyGraph, edges []edge) (int, map[string]struct{}) {
 	triedEdges := 1
 	it := 0
-	g.invertDependency(edges[it].from, edges[it].to)
+	g.InvertDependency(edges[it].from, edges[it].to)
 
-	deps := g.getDependencies(edges[it].to)
+	deps := g.GetDependencies(edges[it].to)
 
 	_, cycle := deps[edges[it].to]
 
 	for cycle {
-		g.invertDependency(edges[it].to, edges[it].from)
+		g.InvertDependency(edges[it].to, edges[it].from)
 		if triedEdges == len(edges) {
 			return -1, nil
 		}
@@ -25,8 +25,8 @@ func edgeSelectPraDet(g DependencyGraph, edges []edge) (int, map[string]struct{}
 		it += 1
 		triedEdges += 1
 
-		g.invertDependency(edges[it].from, edges[it].to)
-		deps = g.getDependencies(edges[it].to)
+		g.InvertDependency(edges[it].from, edges[it].to)
+		deps = g.GetDependencies(edges[it].to)
 		_, cycle = deps[edges[it].to]
 	}
 
@@ -44,7 +44,7 @@ func PraDet(tests []string, oracle *runner.RunnerSet) (DependencyGraph, error) {
 	for i := 1; i < len(tests); i++ {
 		for j := i; j < len(tests); j++ {
 			edges = append(edges, edge{from: tests[j], to: tests[j-i]})
-			g.addDependency(tests[j], tests[j-i])
+			g.AddDependency(tests[j], tests[j-i])
 		}
 	}
 	log.Debug("starting dependency detection algorithm")
@@ -64,17 +64,17 @@ func PraDet(tests []string, oracle *runner.RunnerSet) (DependencyGraph, error) {
 		}
 		log.Debugf("run tests %v -> %v", schedule, results.Results)
 
-		g.removeDependency(edges[it].to, edges[it].from)
+		g.RemoveDependency(edges[it].to, edges[it].from)
 
 		for i, test := range schedule {
 			if test == edges[it].from {
 				if !results.Results[i] {
-					g.addDependency(edges[it].from, edges[it].to)
+					g.AddDependency(edges[it].from, edges[it].to)
 				}
 				edges = append(edges[:it], edges[it+1:]...)
 				break
 			} else if !results.Results[i] {
-				g.addDependency(edges[it].from, edges[it].to)
+				g.AddDependency(edges[it].from, edges[it].to)
 				break
 			}
 		}
@@ -87,7 +87,7 @@ func PraDet(tests []string, oracle *runner.RunnerSet) (DependencyGraph, error) {
 	}
 
 	log.Debug("finished dependency detection algorithm")
-	g.transitiveReduction()
+	g.TransitiveReduction()
 
 	return g, nil
 }

@@ -82,7 +82,7 @@ func findTargets(tests []string, g *DependencyGraph) []dependency {
 	for i := 0; i < len(tests); i++ {
 		targets = append(targets, dependency{
 			test: tests[i],
-			rank: len(g.getDependencies(tests[i])),
+			rank: len(g.GetDependencies(tests[i])),
 		})
 	}
 
@@ -97,8 +97,8 @@ func solveNode(tests []string, runners *runner.RunnerSet, i int, test string, g 
 	end := 0
 	for i, target := range targets {
 		log.Infof("recovery add edge %s -> %s", test, target.test)
-		g.addDependency(test, target.test)
-		deps := g.getDependencies(test)
+		g.AddDependency(test, target.test)
+		deps := g.GetDependencies(test)
 
 		schedule := []string{}
 		for _, test := range tests {
@@ -123,8 +123,8 @@ func solveNode(tests []string, runners *runner.RunnerSet, i int, test string, g 
 		if i == end {
 			break
 		}
-		g.removeDependency(test, target.test)
-		deps := g.getDependencies(test)
+		g.RemoveDependency(test, target.test)
+		deps := g.GetDependencies(test)
 
 		schedule := []string{}
 		for _, test := range tests {
@@ -140,7 +140,7 @@ func solveNode(tests []string, runners *runner.RunnerSet, i int, test string, g 
 		log.Debugf("run tests %v -> %v", schedule, results.Results)
 
 		if firstFailed := slices.Index(results.Results, false); firstFailed != -1 {
-			g.addDependency(test, target.test)
+			g.AddDependency(test, target.test)
 		}
 	}
 
@@ -167,7 +167,7 @@ func recoveryPFAST(tests []string, runners *runner.RunnerSet, g *DependencyGraph
 			return err
 		}
 
-		deps := g.getDependencies(test)
+		deps := g.GetDependencies(test)
 		prefix := []string{}
 		for _, test := range tests {
 			if _, ok := deps[test]; ok {
@@ -273,20 +273,20 @@ func PFAST(tests []string, r *runner.RunnerSet) (DependencyGraph, error) {
 				return nil, res.err
 			}
 
-			g.addDependency(res.from, res.to)
+			g.AddDependency(res.from, res.to)
 		case <-done:
 			jobsNum--
 		}
 	}
 	close(jobs)
 
-	g.transitiveReduction()
+	g.TransitiveReduction()
 	if err := recoveryPFAST(tests, r, &g); err != nil {
 		return nil, err
 	}
 
 	log.Debug("finished dependency detection algorithm")
-	g.transitiveReduction()
+	g.TransitiveReduction()
 
 	return g, nil
 }

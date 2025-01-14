@@ -10,6 +10,10 @@ func TestMEMFASTNoDependencies(t *testing.T) {
 	testNoDependencies(t, algorithms.MEMFAST)
 }
 
+func TestMEMFASTErdosRenyiGenerated(t *testing.T) {
+	testErdosRenyiGenerated(t, algorithms.MEMFAST)
+}
+
 func TestMEMFASTExistingDependencies(t *testing.T) {
 	testExistingDependencies(t, algorithms.MEMFAST)
 }

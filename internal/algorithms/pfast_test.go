@@ -14,6 +14,10 @@ func TestPFASTExistingDependencies(t *testing.T) {
 	testExistingDependencies(t, algorithms.PFAST)
 }
 
+func TestPFASTErdosRenyiGenerated(t *testing.T) {
+	testErdosRenyiGenerated(t, algorithms.PFAST)
+}
+
 func TestPFASTOrDependencies(t *testing.T) {
 	testOrDependencies(t, algorithms.PFAST)
 }

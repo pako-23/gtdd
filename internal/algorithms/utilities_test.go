@@ -2,6 +2,9 @@ package algorithms_test
 
 import (
 	"fmt"
+	"math"
+	"math/rand"
+	"sort"
 	"testing"
 
 	"github.com/pako-23/gtdd/internal/algorithms"
@@ -76,6 +79,25 @@ func (m *mockRunner) Run(tests []string) ([]bool, error) {
 	}
 
 	return results, nil
+}
+
+func erdosRenyiGenerate(nodes []string) algorithms.DependencyGraph {
+	var (
+		g    = algorithms.NewDependencyGraph(nodes)
+		prob = math.Log(float64(len(nodes))) / float64(len(nodes))
+	)
+
+	for i := 0; i < len(nodes); i++ {
+		for j := i + 1; j < len(nodes); j++ {
+			if rand.Float64() < prob {
+				g.AddDependency(nodes[j], nodes[i])
+			}
+		}
+	}
+
+	g.TransitiveReduction()
+
+	return g
 }
 
 func testNoDependencies(t *testing.T, algo algorithms.DependencyDetector) {
@@ -792,6 +814,51 @@ func testExistingDependencies(t *testing.T, algo algorithms.DependencyDetector) 
 		assert.NilError(t, err)
 		assert.Check(t, got.Equal(test.expected),
 			fmt.Sprintf("expected graph %v, but got %v", test.expected, got))
+	}
+}
+
+func testErdosRenyiGenerated(t *testing.T, algo algorithms.DependencyDetector) {
+	t.Parallel()
+
+	nodes, index := make([]string, 15), make(map[string]int, 15)
+	for i := 0; i < len(nodes); i++ {
+		test := fmt.Sprintf("test%d", i)
+		nodes[i] = test
+		index[test] = i
+	}
+
+	for i := 0; i < 50; i++ {
+		expected := erdosRenyiGenerate(nodes)
+
+		dependencies := map[string][][]string{}
+		for _, test := range nodes {
+			deps := expected.GetDependencies(test)
+			if len(deps) == 0 {
+				continue
+			}
+
+			dependencies[test] = make([][]string, 1)
+			dependencies[test][0] = make([]string, 0, len(deps))
+
+			for dep := range deps {
+				dependencies[test][0] = append(
+					dependencies[test][0], dep)
+			}
+
+			sort.Slice(dependencies[test][0], func(i, j int) bool {
+				return index[dependencies[test][0][i]] < index[dependencies[test][0][j]]
+			})
+		}
+
+		runner, _ := runner.NewRunnerSet[*mockRunner](12,
+			newMockRunnerBuilder,
+			withDependencyMap(dependencies))
+
+		got, err := algo(nodes, runner)
+
+		assert.NilError(t, err)
+		assert.Check(t, got.Equal(expected),
+			fmt.Sprintf("expected graph %v, but got %v", expected, got))
 	}
 }
 

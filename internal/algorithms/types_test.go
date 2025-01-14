@@ -1,11 +1,16 @@
-package algorithms
+package algorithms_test
 
 import (
 	"fmt"
 	"testing"
 
+	"github.com/pako-23/gtdd/internal/algorithms"
 	"gotest.tools/v3/assert"
 )
+
+type edge struct {
+	from, to string
+}
 
 func TestNewDependencyGraph(t *testing.T) {
 	t.Parallel()
@@ -17,7 +22,7 @@ func TestNewDependencyGraph(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		got := NewDependencyGraph(test)
+		got := algorithms.NewDependencyGraph(test)
 		assert.Equal(t, len(got), len(test))
 
 		for _, node := range test {
@@ -33,17 +38,17 @@ func TestEqualDependencyGraph(t *testing.T) {
 	t.Parallel()
 
 	var tests = []struct {
-		first    DependencyGraph
-		second   DependencyGraph
+		first    algorithms.DependencyGraph
+		second   algorithms.DependencyGraph
 		expected bool
 	}{
 		{
-			first: DependencyGraph(map[string]map[string]struct{}{
+			first: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {},
 				"node3": {},
 			}),
-			second: DependencyGraph(map[string]map[string]struct{}{
+			second: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {},
 				"node3": {},
@@ -51,13 +56,13 @@ func TestEqualDependencyGraph(t *testing.T) {
 			expected: true,
 		},
 		{
-			first: DependencyGraph(map[string]map[string]struct{}{
+			first: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {},
 				"node3": {},
 				"node4": {},
 			}),
-			second: DependencyGraph(map[string]map[string]struct{}{
+			second: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {},
 				"node3": {},
@@ -65,12 +70,12 @@ func TestEqualDependencyGraph(t *testing.T) {
 			expected: false,
 		},
 		{
-			first: DependencyGraph(map[string]map[string]struct{}{
+			first: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {},
 				"node4": {},
 			}),
-			second: DependencyGraph(map[string]map[string]struct{}{
+			second: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {},
 				"node3": {},
@@ -78,23 +83,23 @@ func TestEqualDependencyGraph(t *testing.T) {
 			expected: false,
 		},
 		{
-			first: DependencyGraph(map[string]map[string]struct{}{
+			first: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {"node1": {}},
 			}),
-			second: DependencyGraph(map[string]map[string]struct{}{
+			second: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {},
 			}),
 			expected: false,
 		},
 		{
-			first: DependencyGraph(map[string]map[string]struct{}{
+			first: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {"node1": {}},
 				"node3": {},
 			}),
-			second: DependencyGraph(map[string]map[string]struct{}{
+			second: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {"node3": {}},
 				"node3": {},
@@ -102,12 +107,12 @@ func TestEqualDependencyGraph(t *testing.T) {
 			expected: false,
 		},
 		{
-			first: DependencyGraph(map[string]map[string]struct{}{
+			first: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {"node1": {}},
 				"node3": {"node1": {}, "node2": {}},
 			}),
-			second: DependencyGraph(map[string]map[string]struct{}{
+			second: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {"node1": {}},
 				"node3": {"node1": {}, "node2": {}},
@@ -128,12 +133,12 @@ func TestAddDependency(t *testing.T) {
 	var tests = []struct {
 		nodes    []string
 		edges    []edge
-		expected DependencyGraph
+		expected algorithms.DependencyGraph
 	}{
 		{
 			nodes: []string{"node1", "node2", "node3"},
 			edges: []edge{},
-			expected: DependencyGraph(map[string]map[string]struct{}{
+			expected: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {},
 				"node3": {},
@@ -142,7 +147,7 @@ func TestAddDependency(t *testing.T) {
 		{
 			nodes: []string{"node1", "node2", "node3"},
 			edges: []edge{{"node2", "node1"}, {"node3", "node1"}, {"node3", "node2"}},
-			expected: DependencyGraph(map[string]map[string]struct{}{
+			expected: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {"node1": {}},
 				"node3": {"node2": {}, "node1": {}},
@@ -151,10 +156,10 @@ func TestAddDependency(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		got := NewDependencyGraph(test.nodes)
+		got := algorithms.NewDependencyGraph(test.nodes)
 
 		for _, edge := range test.edges {
-			got.addDependency(edge.from, edge.to)
+			got.AddDependency(edge.from, edge.to)
 		}
 
 		assert.Check(t, got.Equal(test.expected))
@@ -165,44 +170,44 @@ func TestRemoveDependency(t *testing.T) {
 	t.Parallel()
 
 	var tests = []struct {
-		graph    DependencyGraph
+		graph    algorithms.DependencyGraph
 		edges    []edge
-		expected DependencyGraph
+		expected algorithms.DependencyGraph
 	}{
 		{
-			graph: DependencyGraph(map[string]map[string]struct{}{
+			graph: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {"node1": {}},
 				"node3": {"node2": {}, "node1": {}},
 			}),
 			edges: []edge{},
-			expected: DependencyGraph(map[string]map[string]struct{}{
+			expected: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {"node1": {}},
 				"node3": {"node2": {}, "node1": {}},
 			}),
 		},
 		{
-			graph: DependencyGraph(map[string]map[string]struct{}{
+			graph: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {"node1": {}},
 				"node3": {"node2": {}, "node1": {}},
 			}),
 			edges: []edge{{"node2", "node1"}},
-			expected: DependencyGraph(map[string]map[string]struct{}{
+			expected: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {},
 				"node3": {"node2": {}, "node1": {}},
 			}),
 		},
 		{
-			graph: DependencyGraph(map[string]map[string]struct{}{
+			graph: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {"node1": {}},
 				"node3": {"node2": {}, "node1": {}},
 			}),
 			edges: []edge{{"node2", "node1"}, {"node3", "node2"}, {"node3", "node1"}},
-			expected: DependencyGraph(map[string]map[string]struct{}{
+			expected: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {},
 				"node3": {},
@@ -212,7 +217,7 @@ func TestRemoveDependency(t *testing.T) {
 
 	for _, test := range tests {
 		for _, edge := range test.edges {
-			test.graph.removeDependency(edge.from, edge.to)
+			test.graph.RemoveDependency(edge.from, edge.to)
 		}
 
 		assert.Check(t, test.graph.Equal(test.expected))
@@ -223,44 +228,44 @@ func TestInvertDependency(t *testing.T) {
 	t.Parallel()
 
 	var tests = []struct {
-		graph    DependencyGraph
+		graph    algorithms.DependencyGraph
 		edges    []edge
-		expected DependencyGraph
+		expected algorithms.DependencyGraph
 	}{
 		{
-			graph: DependencyGraph(map[string]map[string]struct{}{
+			graph: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {"node1": {}},
 				"node3": {"node2": {}, "node1": {}},
 			}),
 			edges: []edge{},
-			expected: DependencyGraph(map[string]map[string]struct{}{
+			expected: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {"node1": {}},
 				"node3": {"node2": {}, "node1": {}},
 			}),
 		},
 		{
-			graph: DependencyGraph(map[string]map[string]struct{}{
+			graph: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {"node1": {}},
 				"node3": {"node2": {}, "node1": {}},
 			}),
 			edges: []edge{{"node2", "node1"}},
-			expected: DependencyGraph(map[string]map[string]struct{}{
+			expected: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {"node2": {}},
 				"node2": {},
 				"node3": {"node2": {}, "node1": {}},
 			}),
 		},
 		{
-			graph: DependencyGraph(map[string]map[string]struct{}{
+			graph: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {"node1": {}},
 				"node3": {"node2": {}, "node1": {}},
 			}),
 			edges: []edge{{"node2", "node1"}, {"node3", "node2"}, {"node3", "node1"}},
-			expected: DependencyGraph(map[string]map[string]struct{}{
+			expected: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {"node2": {}, "node3": {}},
 				"node2": {"node3": {}},
 				"node3": {},
@@ -270,7 +275,7 @@ func TestInvertDependency(t *testing.T) {
 
 	for _, test := range tests {
 		for _, edge := range test.edges {
-			test.graph.invertDependency(edge.from, edge.to)
+			test.graph.InvertDependency(edge.from, edge.to)
 		}
 
 		assert.Check(t, test.graph.Equal(test.expected))
@@ -281,11 +286,11 @@ func TestGetDependencies(t *testing.T) {
 	t.Parallel()
 
 	var tests = []struct {
-		graph    DependencyGraph
+		graph    algorithms.DependencyGraph
 		expected map[string]map[string]struct{}
 	}{
 		{
-			graph: DependencyGraph(map[string]map[string]struct{}{
+			graph: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {"node1": {}},
 				"node3": {"node2": {}},
@@ -298,7 +303,7 @@ func TestGetDependencies(t *testing.T) {
 		},
 
 		{
-			graph: DependencyGraph(map[string]map[string]struct{}{
+			graph: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {"node3": {}},
 				"node2": {"node1": {}},
 				"node3": {"node2": {}},
@@ -313,7 +318,7 @@ func TestGetDependencies(t *testing.T) {
 
 	for _, test := range tests {
 		for node, expected := range test.expected {
-			dependencies := test.graph.getDependencies(node)
+			dependencies := test.graph.GetDependencies(node)
 
 			assert.Equal(t, len(dependencies), len(expected))
 
@@ -330,66 +335,66 @@ func TestTransitiveReduction(t *testing.T) {
 	t.Parallel()
 
 	var tests = []struct {
-		graph    DependencyGraph
-		expected DependencyGraph
+		graph    algorithms.DependencyGraph
+		expected algorithms.DependencyGraph
 	}{
 		{
-			graph: DependencyGraph(map[string]map[string]struct{}{
+			graph: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {"node1": {}},
 				"node3": {"node2": {}, "node1": {}},
 			}),
-			expected: DependencyGraph(map[string]map[string]struct{}{
+			expected: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {"node1": {}},
 				"node3": {"node2": {}},
 			}),
 		},
 		{
-			graph: DependencyGraph(map[string]map[string]struct{}{
+			graph: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {},
 				"node3": {},
 			}),
-			expected: DependencyGraph(map[string]map[string]struct{}{
+			expected: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {},
 				"node3": {},
 			}),
 		},
 		{
-			graph: DependencyGraph(map[string]map[string]struct{}{
+			graph: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {"node1": {}},
 				"node3": {"node2": {}},
 			}),
-			expected: DependencyGraph(map[string]map[string]struct{}{
+			expected: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {"node1": {}},
 				"node3": {"node2": {}},
 			}),
 		},
 		{
-			graph: DependencyGraph(map[string]map[string]struct{}{
+			graph: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {},
 				"node3": {"node1": {}, "node2": {}},
 			}),
-			expected: DependencyGraph(map[string]map[string]struct{}{
+			expected: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {},
 				"node3": {"node1": {}, "node2": {}},
 			}),
 		},
 		{
-			graph: DependencyGraph(map[string]map[string]struct{}{
+			graph: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {"node1": {}},
 				"node3": {"node1": {}},
 				"node4": {"node1": {}, "node3": {}},
 				"node5": {"node1": {}, "node2": {}},
 			}),
-			expected: DependencyGraph(map[string]map[string]struct{}{
+			expected: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {"node1": {}},
 				"node3": {"node1": {}},
@@ -400,7 +405,7 @@ func TestTransitiveReduction(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test.graph.transitiveReduction()
+		test.graph.TransitiveReduction()
 
 		assert.Check(t, test.graph.Equal(test.expected))
 	}
@@ -410,12 +415,12 @@ func TestGetSchedules(t *testing.T) {
 	t.Parallel()
 
 	var tests = []struct {
-		graph    DependencyGraph
+		graph    algorithms.DependencyGraph
 		tests    []string
 		expected [][]string
 	}{
 		{
-			graph: DependencyGraph(map[string]map[string]struct{}{
+			graph: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {},
 				"node3": {},
@@ -424,7 +429,7 @@ func TestGetSchedules(t *testing.T) {
 			expected: [][]string{{"node1"}, {"node2"}, {"node3"}},
 		},
 		{
-			graph: DependencyGraph(map[string]map[string]struct{}{
+			graph: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {"node1": {}},
 				"node3": {"node2": {}},
@@ -433,7 +438,7 @@ func TestGetSchedules(t *testing.T) {
 			expected: [][]string{{"node1", "node2", "node3"}},
 		},
 		{
-			graph: DependencyGraph(map[string]map[string]struct{}{
+			graph: algorithms.DependencyGraph(map[string]map[string]struct{}{
 				"node1": {},
 				"node2": {"node1": {}},
 				"node3": {"node1": {}},

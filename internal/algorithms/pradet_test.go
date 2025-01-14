@@ -21,6 +21,10 @@ func TestPraDetOrDependencies(t *testing.T) {
 	testOrDependencies(t, algorithms.PraDet)
 }
 
+func TestPraDetErdosRenyiGenerated(t *testing.T) {
+	testErdosRenyiGenerated(t, algorithms.PraDet)
+}
+
 func TestPraDetOrDependenciesMultipleLen(t *testing.T) {
 	t.Parallel()
 
