@@ -2,6 +2,7 @@ package algorithms
 
 import (
 	"sort"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
@@ -220,6 +221,8 @@ func PFAST(tests []string, r *runner.RunnerSet) (DependencyGraph, error) {
 	for i := 0; i < r.Size()+1; i++ {
 		go func() {
 			for job := range jobs {
+				var sleepTime time.Duration = 1
+
 				job.schedule = remove(job.schedule, job.toRemove)
 				for {
 					out, err := r.RunSchedule(job.schedule)
@@ -234,6 +237,8 @@ func PFAST(tests []string, r *runner.RunnerSet) (DependencyGraph, error) {
 						done <- struct{}{}
 						break
 					} else if firstFailed < job.excluded {
+						time.Sleep(sleepTime * time.Second)
+						sleepTime *= 2
 						continue
 					} else if firstFailed != -1 {
 						results <- result{
