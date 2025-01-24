@@ -70,7 +70,7 @@ will run the tests in the original order.`,
 				return err
 			}
 
-			duration, err := runSchedules(filterSchedules(tests, schedules), runners)
+			duration, err := runSchedules(schedules, runners)
 			if err != nil {
 				return err
 			}
@@ -86,34 +86,4 @@ will run the tests in the original order.`,
 	runCommand.Flags().UintP("runners", "r", runner.DefaultSetSize, "the number of concurrent runners")
 
 	return runCommand
-}
-
-func filterSchedules(tests []string, schedules [][]string) [][]string {
-	var (
-		filtered = make([][]string, 0, len(schedules))
-		testsSet = make(map[string]struct{}, len(tests))
-	)
-
-	for _, test := range tests {
-		testsSet[test] = struct{}{}
-	}
-
-	for _, schedule := range schedules {
-		register := true
-
-		for _, test := range schedule {
-			if _, ok := testsSet[test]; !ok {
-				register = false
-				break
-			}
-		}
-
-		if register {
-			filtered = append(filtered, schedule)
-		}
-
-	}
-
-	return filtered
-
 }
